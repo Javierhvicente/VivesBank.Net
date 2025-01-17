@@ -15,9 +15,9 @@ public class Product
     [Required]
     public Type ProductType { get; set; }
     
-    public DateTime CreatedAt { get; set; } = DateTime.Now; 
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow; 
     
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     
     [Required]
     public bool IsDeleted { get; set; }= false;

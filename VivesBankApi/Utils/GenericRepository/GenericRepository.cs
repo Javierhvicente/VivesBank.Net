@@ -1,6 +1,6 @@
+using ApiFunkosCS.Utils.GenericRepository;
 using Microsoft.EntityFrameworkCore;
 
-namespace ApiFunkosCS.Utils.GenericRepository;
 
 public class GenericRepository<C, T> : IGenericRepository<T> where T : class where C : DbContext
 {
@@ -50,7 +50,7 @@ public class GenericRepository<C, T> : IGenericRepository<T> where T : class whe
     public async Task UpdateAsync(T entity)
     {
         _logger.LogInformation($"Updating {typeof(T).Name} entity: {entity}");
-        _context.Entry(entity).State = EntityState.Modified; // Cambiamos el estado explícitamente
+        _context.Entry(entity).State = EntityState.Modified;
         await _context.SaveChangesAsync();
         
     }
@@ -69,7 +69,7 @@ public class GenericRepository<C, T> : IGenericRepository<T> where T : class whe
         await _context.SaveChangesAsync();
     }
     
-    private static readonly SemaphoreSlim _semaphore = new(1, 1); // (capacidad inicial, capacidad máxima)
+    private static readonly SemaphoreSlim _semaphore = new(1, 1);
 
     public async Task DeleteAllAsync()
     {

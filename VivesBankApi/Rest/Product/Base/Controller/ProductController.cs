@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using VivesBankApi.Rest.Product.Base.Dto;
+using VivesBankApi.Rest.Product.Base.Exception;
 using VivesBankApi.Rest.Product.Service;
 
 namespace VivesBankApi.Rest.Product.Base.Controller;
@@ -29,11 +30,18 @@ public class ProductController : ControllerBase
     public async Task<ActionResult<ProductResponse>> GetProductByIdAsync(string productId)
     {
         _logger.LogInformation($"Getting product with id {productId}");
-        var result = await _productService.GetProductByIdAsync(productId);
+        try
+        {
+            var result = await _productService.GetProductByIdAsync(productId);
 
-        if (result==null) return NotFound();
+            if (result == null) return NotFound();
 
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (ProductException.ProductNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     [HttpPost]

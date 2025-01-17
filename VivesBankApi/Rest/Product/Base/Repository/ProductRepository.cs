@@ -9,7 +9,7 @@ public class ProductRepository : GenericRepository<BancoDbContext,Base.Models.Pr
         : base(context, logger)
     {
     }
-    public async Task<Base.Models.Product?> GetByNameAsync(string name)
+    public async Task<Models.Product?> GetByNameAsync(string name)
     {
          _logger.LogInformation($"Searching product by name: {name}");   
          return await _dbSet.FirstOrDefaultAsync(p => p.Name == name);

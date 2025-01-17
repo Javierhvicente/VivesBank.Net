@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Moq;
 using NUnit.Framework.Legacy;
 using StackExchange.Redis;
@@ -13,7 +13,11 @@ using Role = VivesBankApi.Rest.Users.Models.Role;
 namespace Tests.Rest.Users.Service;
 
 [TestFixture]
+<<<<<<< HEAD:Tests/Rest/Users/Service/UserServiceTest.cs
 public class UserServiceTest
+=======
+public class estUserService
+>>>>>>> origin/develop:Tests/Rest/Users/Service/TestUserService.cs
 {
     private Mock<IConnectionMultiplexer> _connection;
     private Mock<IDatabase> _cache;

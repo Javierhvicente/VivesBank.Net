@@ -62,17 +62,24 @@ public class ProductService : IProductService
         }
 
         product.Name = updateRequest.Name;
-        product.UpdatedAt = DateTime.Now;
+        product.UpdatedAt = DateTime.UtcNow;
 
         await _productRepository.UpdateAsync(product);
 
         return product.ToDtoResponse();
     }
 
-    public Task DeleteProductAsync(string productId)
+    public async Task DeleteProductAsync(string productId)
     {
-        _logger.LogInformation($"Removing product by Id: {productId} ");
-        
-        return _productRepository.DeleteAsync(productId);
+        _logger.LogInformation($"Removing product by Id: {productId}");
+    
+        var product = await _productRepository.GetByIdAsync(productId);
+        if (product == null)
+        {
+            _logger.LogError($"Product not found with id {productId}");
+            throw new ProductException.ProductNotFoundException(productId);
+        }
+    
+        await _productRepository.DeleteAsync(productId);
     }
 }

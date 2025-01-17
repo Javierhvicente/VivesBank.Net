@@ -1,8 +1,10 @@
 using System.Text;
+using ApiFranfurkt.Properties.Currency.Services;
 using ApiFunkosCS.Utils.DevApplyMigrations;
 using ApiFunkosCS.Utils.ExceptionMiddleware;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Refit;
 using Serilog;
 using Serilog.Core;
 using StackExchange.Redis;
@@ -172,6 +174,26 @@ WebApplicationBuilder InitServices()
 // USUARIO
     myBuilder.Services.AddScoped<IUserRepository, UserRepository>();
     myBuilder.Services.AddScoped<IUserService, UserService>();
+    
+// API FRANKFURTER 
+    // API Frankfurter: Configuración del cliente HTTP y servicio
+    string frankfurterBaseUrl = configuration["Frankfurter:BaseUrl"];
+    if (string.IsNullOrEmpty(frankfurterBaseUrl))
+    {
+        throw new InvalidOperationException("Frankfurter BaseUrl is not configured.");
+    }
+
+// Registro del cliente HTTP con Refit
+    myBuilder.Services.AddRefitClient<ICurrencyApiService>()
+        .ConfigureHttpClient(client =>
+        {
+            client.BaseAddress = new Uri(frankfurterBaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(30); 
+        });
+
+// Registro del servicio de Frankfurter
+    myBuilder.Services.AddScoped<CurrencyApiService>();
+    
     
 // CVCGENERATOR
     myBuilder.Services.AddScoped<CvcGenerator>();
