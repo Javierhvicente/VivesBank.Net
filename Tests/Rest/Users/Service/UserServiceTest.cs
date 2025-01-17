@@ -13,7 +13,7 @@ using Role = VivesBankApi.Rest.Users.Models.Role;
 namespace Tests.Rest.Users.Service;
 
 [TestFixture]
-public class TestUserService
+public class UserServiceTest
 {
     private Mock<IConnectionMultiplexer> _connection;
     private Mock<IDatabase> _cache;
