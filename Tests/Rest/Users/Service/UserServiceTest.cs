@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using ICSharpCode.SharpZipLib.Core;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Abstractions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -64,8 +63,8 @@ public class UserServiceTest
         _httpContextAccessor = new Mock<IHttpContextAccessor>();
         _memoryCacheMock = new Mock<IMemoryCache>();
         
-        _memoryCacheMock.Setup(m => m.TryGetValue(It.IsAny<object>(), out It.Ref<object>.IsAny))
-            .Returns(false);
+        _memoryCacheMock.Setup(m => m.CreateEntry(It.IsAny<object>()))
+            .Returns(Mock.Of<ICacheEntry>());
         
         // Creación del servicio con las dependencias
         userService = new UserService(
@@ -914,8 +913,8 @@ public async Task DeleteMeAsync_Success()
 
     // Assert
     userRepositoryMock.Verify(repo => repo.UpdateAsync(It.Is<User>(u => u.IsDeleted && u.Role == Role.Revoked)), Times.Once);
-    _cache.Verify(cache => cache.KeyDeleteAsync(userId, It.IsAny<CommandFlags>()), Times.Once);
-    _cache.Verify(cache => cache.KeyDeleteAsync("users:" + user.Dni.Trim().ToUpper(), It.IsAny<CommandFlags>()), Times.Once);
+    _cache.Verify(cache => cache.KeyDeleteAsync(userId, It.IsAny<CommandFlags>()), Times.Exactly(2));
+    _cache.Verify(cache => cache.KeyDeleteAsync("users:" + user.Dni.Trim().ToUpper(), It.IsAny<CommandFlags>()), Times.Exactly(2));
 }
 
 [Test]
