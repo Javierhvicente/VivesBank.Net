@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using ICSharpCode.SharpZipLib.Core;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Abstractions;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
@@ -31,6 +33,7 @@ public class UserServiceTest
     private Mock<IUserRepository> userRepositoryMock;
     private Mock<AuthJwtConfig> _authConfig;
     private Mock<ILogger<UserService>> _logger;
+    private Mock<IMemoryCache> _memoryCacheMock;
     private UserService userService;
     private User _user1;
     private User _user2;
@@ -59,7 +62,11 @@ public class UserServiceTest
         userRepositoryMock = new Mock<IUserRepository>();
         _webSocketHandler = new Mock<IWebsocketHandler>();
         _httpContextAccessor = new Mock<IHttpContextAccessor>();
-
+        _memoryCacheMock = new Mock<IMemoryCache>();
+        
+        _memoryCacheMock.Setup(m => m.TryGetValue(It.IsAny<object>(), out It.Ref<object>.IsAny))
+            .Returns(false);
+        
         // Creación del servicio con las dependencias
         userService = new UserService(
             _logger.Object,
@@ -67,7 +74,8 @@ public class UserServiceTest
             authConfig, // Pasar la instancia real aquí
             _connection.Object,
             _webSocketHandler.Object,
-            _httpContextAccessor.Object
+            _httpContextAccessor.Object,
+            _memoryCacheMock.Object
         );
 
         // Datos de prueba

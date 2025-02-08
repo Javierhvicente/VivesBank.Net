@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text;
 using HotChocolate.Authorization;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using StackExchange.Redis;
@@ -27,10 +28,12 @@ public class UserService : GenericStorageJson<User>, IUserService
 {
     private readonly IUserRepository _userRepository;
     private readonly IDatabase _cache;
+    private readonly IMemoryCache _memoryCache;
     private readonly AuthJwtConfig _authConfig;
     private readonly ILogger _logger;
     private readonly IWebsocketHandler _webSocketHandler;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private const string CacheKeyPrefix = "User:";
 
     /// <summary>
     /// Constructor para inyectar las dependencias necesarias.
@@ -47,10 +50,11 @@ public class UserService : GenericStorageJson<User>, IUserService
         AuthJwtConfig authConfig,
         IConnectionMultiplexer connectionMultiplexer,
         IWebsocketHandler webSocketHandler,
-        IHttpContextAccessor httpContextAccessor
+        IHttpContextAccessor httpContextAccessor, IMemoryCache memoryCache
     ) : base(logger)
     {
         _logger = logger;
+        _memoryCache = memoryCache;
         _authConfig = authConfig;
         _userRepository = userRepository;
         _cache = connectionMultiplexer.GetDatabase();
@@ -171,62 +175,83 @@ public class UserService : GenericStorageJson<User>, IUserService
     /// <exception cref="InvalidDniException">Si el DNI proporcionado no es válido.</exception>
     /// <exception cref="UserNotFoundException">Si no se encuentra el usuario.</exception>
     /// <exception cref="UserAlreadyExistsException">Si el DNI ya está en uso por otro usuario.</exception>
-    public async Task<UserResponse> UpdateUserAsync(String id, UserUpdateRequest user)
+    public async Task<UserResponse> UpdateUserAsync(string id, UserUpdateRequest user)
     {
         if (user.Dni != null && !UserValidator.ValidateDni(user.Dni))
         {
-             throw new InvalidDniException(user.Dni);
+            throw new InvalidDniException(user.Dni);
         }
 
+        // Obtener el usuario a actualizar
         User? userToUpdate = await GetByIdAsync(id) ?? throw new UserNotFoundException(id);
-        
+    
         if (user.Dni != null)
         {
+            // Verificar si hay otro usuario con el mismo DNI
             User? userWithTheSameUsername = await GetByUsernameAsync(userToUpdate.Dni);
             if (userWithTheSameUsername != null && userWithTheSameUsername.Id != id)
             {
                 throw new UserAlreadyExistsException(user.Dni);
             }
         }
-        
+
+        // Actualizar los detalles del usuario
         User updatedUser = user.UpdateUserFromInput(userToUpdate);
         await _userRepository.UpdateAsync(updatedUser);
-        // Eliminar la entrada antigua de la caché
-        await _cache.KeyDeleteAsync(id);
-        await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper());
-        // Agregar la nueva entrada a la caché
-        await _cache.StringSetAsync(id, JsonConvert.SerializeObject(updatedUser), TimeSpan.FromMinutes(10));
+
+        // Eliminar la entrada antigua de la caché (tanto en Redis como en la memoria)
+        await _cache.KeyDeleteAsync(id); 
+        await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper()); 
+    
+        _memoryCache.Remove(id); 
+        _memoryCache.Remove("users:" + userToUpdate.Dni.Trim().ToUpper()); 
+        
+        await _cache.StringSetAsync(id, JsonConvert.SerializeObject(updatedUser), TimeSpan.FromMinutes(10)); 
+        _memoryCache.Set(id, updatedUser, TimeSpan.FromMinutes(10)); 
+        _memoryCache.Set("users:" + updatedUser.Dni.Trim().ToUpper(), updatedUser, TimeSpan.FromMinutes(10)); 
+
         return updatedUser.ToUserResponse();
     }
+
 
     /// <summary>
     /// Elimina un usuario del sistema. Puede ser una eliminación lógica o física.
     /// </summary>
     /// <param name="id">El ID del usuario a eliminar.</param>
     /// <param name="logically">Indica si la eliminación es lógica (true) o física (false).</param>
-    public async Task DeleteUserAsync(String id, bool logically)
+    public async Task DeleteUserAsync(string id, bool logically)
     {
+        // Obtener el usuario a eliminar
         User? userToUpdate = await _userRepository.GetByIdAsync(id);
         if (userToUpdate == null)
         {
             throw new UserNotFoundException(id);
         }
-        
+
         if (logically)
         {
+            // Realizar eliminación lógica
             userToUpdate.IsDeleted = true;
             userToUpdate.Role = Role.Revoked;
             await _userRepository.UpdateAsync(userToUpdate);
-            await _cache.KeyDeleteAsync(id);
-            await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper());
+
+            // Eliminar de la caché (tanto en Redis como en memoria)
+            await _cache.KeyDeleteAsync(id); 
+            await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper()); 
+            _memoryCache.Remove(id); 
+            _memoryCache.Remove("users:" + userToUpdate.Dni.Trim().ToUpper()); 
         }
         else
         {
+            // Realizar eliminación física
             await _cache.KeyDeleteAsync(id);
-            await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper());
-            await _userRepository.DeleteAsync(id);
+            await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper()); 
+            _memoryCache.Remove(id); 
+            _memoryCache.Remove("users:" + userToUpdate.Dni.Trim().ToUpper()); 
+            await _userRepository.DeleteAsync(id); 
         }
     }
+
     
     // Métodos privados de acceso a caché y base de datos...
 
@@ -237,16 +262,32 @@ public class UserService : GenericStorageJson<User>, IUserService
     /// <returns>El usuario si se encuentra, de lo contrario null.</returns>
     private async Task<User?> GetByIdAsync(string id)
     {
-        var cachedUser = await _cache.StringGetAsync(id);
-        if (cachedUser.HasValue)
+        var cacheKey = CacheKeyPrefix + id;
+
+        // Intentar obtener desde la memoria caché
+        if (_memoryCache.TryGetValue(cacheKey, out User? memoryCacheUser))
         {
-            return JsonConvert.DeserializeObject<User>(cachedUser);
+            _logger.LogInformation("Usuario obtenido desde la memoria caché");
+            return memoryCacheUser;
         }
 
+        // Intentar obtener desde Redis
+        var cachedUser = await _cache.StringGetAsync(cacheKey);
+        if (cachedUser.HasValue)
+        {
+            var userFromRedis = JsonConvert.DeserializeObject<User>(cachedUser);
+            _memoryCache.Set(cacheKey, userFromRedis, TimeSpan.FromMinutes(5)); 
+            return userFromRedis;
+        }
+
+        // Si no está en la caché, obtener desde la base de datos
         User? user = await _userRepository.GetByIdAsync(id);
         if (user != null)
         {
-            await _cache.StringSetAsync(id, JsonConvert.SerializeObject(user), TimeSpan.FromMinutes(10));
+            // Guardar en Redis
+            await _cache.StringSetAsync(cacheKey, JsonConvert.SerializeObject(user), TimeSpan.FromMinutes(10));
+            // Guardar en memoria
+            _memoryCache.Set(cacheKey, user, TimeSpan.FromMinutes(5));
         }
         return user;
     }
@@ -258,18 +299,34 @@ public class UserService : GenericStorageJson<User>, IUserService
     /// <returns>El usuario encontrado si existe, de lo contrario null.</returns>
     private async Task<User?> GetByUsernameAsync(string username)
     {
-        var cachedUser = await _cache.StringGetAsync("users:" + username.Trim().ToUpper());
+        var cacheKey = CacheKeyPrefix + username;
+
+        // Intentar obtener desde la memoria caché
+        if (_memoryCache.TryGetValue(cacheKey, out User? memoryCacheUser))
+        {
+            _logger.LogInformation("Usuario obtenido desde la memoria caché");
+            return memoryCacheUser;
+        }
+
+        // Intentar obtener desde Redis
+        var cachedUser = await _cache.StringGetAsync(cacheKey);
         if (!cachedUser.IsNullOrEmpty)
         {
-            return JsonConvert.DeserializeObject<User>(cachedUser);
+            var userFromRedis = JsonConvert.DeserializeObject<User>(cachedUser);
+            _memoryCache.Set(cacheKey, userFromRedis, TimeSpan.FromMinutes(5));
+            return userFromRedis;
         }
+
+        // Si no está en Redis, obtener de la base de datos
         User? user = await _userRepository.GetByUsernameAsync(username);
         if (user != null)
         {
-            await _cache.StringSetAsync("users:" + username.Trim().ToUpper(), JsonConvert.SerializeObject(user), TimeSpan.FromMinutes(10));
-            return user;
+            // Guardar en Redis
+            await _cache.StringSetAsync(cacheKey, JsonConvert.SerializeObject(user), TimeSpan.FromMinutes(10));
+            // Guardar en caché de memoria
+            _memoryCache.Set(cacheKey, user, TimeSpan.FromMinutes(5));
         }
-        return null;
+        return user;
     }
 
     /// <summary>
@@ -297,13 +354,24 @@ public class UserService : GenericStorageJson<User>, IUserService
         var user = _httpContextAccessor.HttpContext!.User;
         var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         User? userToUpdate = await GetByIdAsync(id) ?? throw new UserNotFoundException(id);
+
+        // Actualizar la contraseña
         userToUpdate.Password = BCrypt.Net.BCrypt.HashPassword(request.Password);
         await _userRepository.UpdateAsync(userToUpdate);
+
+        // Eliminar usuario de la caché
+        var cacheKey = CacheKeyPrefix + userToUpdate.Dni;
         await _cache.KeyDeleteAsync(id);
         await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper());
+        _memoryCache.Remove(cacheKey);
+
+        // Guardar la nueva versión del usuario en caché
         await _cache.StringSetAsync(id, JsonConvert.SerializeObject(userToUpdate), TimeSpan.FromMinutes(10));
+        _memoryCache.Set(cacheKey, userToUpdate, TimeSpan.FromMinutes(5));
+
         return userToUpdate;
     }
+
 
     /// <summary>
     /// Elimina la cuenta del usuario autenticado de forma lógica.
@@ -316,8 +384,16 @@ public class UserService : GenericStorageJson<User>, IUserService
         var user = _httpContextAccessor.HttpContext!.User;
         var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         User? userToDelete = await GetByIdAsync(id) ?? throw new UserNotFoundException(id);
+
+        // Eliminar de la caché antes de la eliminación
+        var cacheKey = CacheKeyPrefix + userToDelete.Dni;
+        await _cache.KeyDeleteAsync(id);
+        await _cache.KeyDeleteAsync("users:" + userToDelete.Dni.Trim().ToUpper());
+        _memoryCache.Remove(cacheKey);
+
         await DeleteUserAsync(id, logically: true);
     }
+
 
     /// <summary>
     /// Registra un nuevo usuario con su DNI y contraseña.
