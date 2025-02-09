@@ -119,24 +119,26 @@ public class ProductService : GenericStorageJson<Models.Product>, IProductServic
     public async Task<ProductResponse> UpdateProductAsync(string productId, ProductUpdateRequest updateRequest)
     {
         _logger.LogInformation($"Updating product: {updateRequest} by Id: {productId}");
-    
+
         var cachedProduct = await _cache.StringGetAsync(productId);
         Base.Models.Product? product = !cachedProduct.IsNullOrEmpty
             ? JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct)
             : await _productRepository.GetByIdAsync(productId);
-    
+
         if (product == null)
         {
             _logger.LogError($"Product not found with id {productId}");
             throw new ProductException.ProductNotFoundException(productId);
         }
+
+        await _cache.KeyDeleteAsync(productId); 
     
         product.Name = updateRequest.Name;
         product.UpdatedAt = DateTime.UtcNow;
-    
+
         await _productRepository.UpdateAsync(product);
         await _cache.StringSetAsync(productId, JsonConvert.SerializeObject(product), TimeSpan.FromMinutes(10));
-    
+
         return product.ToDtoResponse();
     }
 
