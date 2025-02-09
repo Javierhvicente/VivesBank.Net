@@ -1,9 +1,12 @@
 ﻿using System.Security.Claims;
 using HotChocolate.Authorization;
 using MongoDB.Bson;
+using Serilog;
 using VivesBankApi.Rest.Clients.Service;
+using VivesBankApi.Rest.Movimientos.Dto;
 using VivesBankApi.Rest.Movimientos.Errors;
 using VivesBankApi.Rest.Movimientos.Exceptions;
+using VivesBankApi.Rest.Movimientos.Mappers;
 using VivesBankApi.Rest.Movimientos.Models;
 using VivesBankApi.Rest.Movimientos.Services.Domiciliaciones;
 using VivesBankApi.Rest.Movimientos.Services.Movimientos;
@@ -23,45 +26,10 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// Requiere permisos de administrador.
         /// </remarks>
         /// <returns>Lista de movimientos</returns>
-        public async Task<IQueryable<Movimiento>> GetMovimientos()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientos()
         {
             var movimientosList = await movimientoService.FindAllMovimientosAsync();
-            return movimientosList.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
-        }
-        
-        /// <summary>
-        /// Obtiene un movimiento específico por su ID.
-        /// </summary>
-        /// <param name="id">El ID del movimiento a recuperar</param>
-        /// <remarks>
-        /// Si el movimiento no se encuentra, se lanzará un error.
-        /// </remarks>
-        /// <returns>Movimiento encontrado</returns>
-        public async Task<Movimiento> GetMovimientoById(String id)
-        {
-            var movimiento =  await movimientoService.FindMovimientoByIdAsync(id);
-            if (movimiento == null) throw new GraphQLException(new MovimientoNotFoundError(id));
-            return new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            };
+            return movimientosList.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
         
         /// <summary>
@@ -69,21 +37,10 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </summary>
         /// <param name="clienteGuid">El GUID del cliente para filtrar los movimientos</param>
         /// <returns>Lista de movimientos para ese cliente</returns>
-        public async Task<IQueryable<Movimiento>> GetMovimientosByCliente(string clienteGuid)
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosByCliente(string clienteGuid)
         {
             var movimientosList = await movimientoService.FindAllMovimientosByClientAsync(clienteGuid);
-            return movimientosList.Select(
-                movimiento => new Movimiento
-                {
-                    Guid = movimiento.Guid,
-                    Domiciliacion = movimiento.Domiciliacion,
-                    IngresoDeNomina = movimiento.IngresoDeNomina,
-                    PagoConTarjeta = movimiento.PagoConTarjeta,
-                    Transferencia = movimiento.Transferencia,
-                    CreatedAt = movimiento.CreatedAt,
-                    UpdatedAt = movimiento.UpdatedAt
-                }
-            ).AsQueryable();
+            return movimientosList.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
         
         
@@ -95,20 +52,11 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// Si el movimiento no se encuentra, se lanzará un error.
         /// </remarks>
         /// <returns>Movimiento encontrado</returns>
-        public async Task<Movimiento> GetMovimientoByGuid(string guid)
+        public async Task<MovimientoResponse> GetMovimientoByGuid(string guid)
         {
-            var movimiento =  await movimientoService.FindMovimientoByGuidAsync(guid);
+            var movimiento = await movimientoService.FindMovimientoByGuidAsync(guid);
             if (movimiento == null) throw new GraphQLException(new MovimientoNotFoundError(guid));
-            return new Movimiento
-            {
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            };
+            return movimiento.ToMovimientoResponseFromModel();
         }
         
         /// <summary>
@@ -118,8 +66,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// Este endpoint solo está disponible para usuarios autenticados. Si el usuario no está autenticado, se lanza un error.
         /// </remarks>
         /// <returns>Lista de domiciliaciones activas del cliente</returns>
-        [Authorize]
-        public async Task<IQueryable<Domiciliacion>> GetDomciliacionesActivasByCliente()
+        public async Task<IQueryable<DomiciliacionResponse>> GetDomiciliacionesActivasByCliente()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null ||!user.Identity.IsAuthenticated)
@@ -129,18 +76,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var domiciliaciones = await domiciliacionService.FindDomiciliacionesActivasByClienteGiudAsync(cliente.Id);
-            return domiciliaciones.Select(domiciliacion => new Domiciliacion
-            {
-                Guid = domiciliacion.Guid,
-                ClienteGuid = domiciliacion.ClienteGuid,
-                IbanOrigen = domiciliacion.IbanOrigen,
-                IbanDestino = domiciliacion.IbanDestino,
-                Cantidad = domiciliacion.Cantidad,
-                NombreAcreedor = domiciliacion.NombreAcreedor,
-                FechaInicio = domiciliacion.FechaInicio,
-                Periodicidad = domiciliacion.Periodicidad,
-                UltimaEjecucion = domiciliacion.UltimaEjecucion
-            }).AsQueryable();
+            return domiciliaciones.Select(domiciliacion => domiciliacion.ToDomiciliacionResponseFromModel()).AsQueryable();
         }
 
         /// <summary>
@@ -151,7 +87,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </remarks>
         /// <returns>Lista de movimientos de domiciliación para el cliente</returns>
         [Authorize]
-        public async Task<IQueryable<Movimiento>> GetMovimientosDomiciliacionByCliente()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosDomiciliacionByCliente()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null ||!user.Identity.IsAuthenticated)
@@ -161,17 +97,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var movimientos = await movimientoMeQueriesService.FindMovimientosDomiciliacionByClienteGuidAsync(cliente.Id);
-            return movimientos.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
+            return movimientos.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
 
         
@@ -184,7 +110,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </remarks>
         /// <returns>Lista de movimientos de transferencia del cliente autenticado</returns>
         [Authorize]
-        public async Task<IQueryable<Movimiento>> GetMovimientosTransferenciaByClienteGuidAsync()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosTransferenciaByClienteGuidAsync()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null ||!user.Identity.IsAuthenticated)
@@ -194,17 +120,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var movimientos = await movimientoMeQueriesService.FindMovimientosTransferenciaByClienteGuidAsync(cliente.Id);
-            return movimientos.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
+            return movimientos.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
 
         /// <summary>
@@ -216,7 +132,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </remarks>
         /// <returns>Lista de movimientos de pago con tarjeta del cliente autenticado</returns>
         [Authorize]
-        public async Task<IQueryable<Movimiento>> GetMovimientosPagoConTarjetaByClienteGuidAsync()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosPagoConTarjetaByClienteGuidAsync()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null ||!user.Identity.IsAuthenticated)
@@ -226,17 +142,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var movimientos = await movimientoMeQueriesService.FindMovimientosPagoConTarjetaByClienteGuidAsync(cliente.Id);
-            return movimientos.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
+            return movimientos.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
         
         /// <summary>
@@ -248,7 +154,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </remarks>
         /// <returns>Lista de movimientos de ingreso de nómina del cliente autenticado</returns>
         [Authorize]
-        public async Task<IQueryable<Movimiento>> GetMovimientosIngresoDeNominaByClienteGuidAsync()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosIngresoDeNominaByClienteGuidAsync()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null ||!user.Identity.IsAuthenticated)
@@ -258,19 +164,9 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var movimientos = await movimientoMeQueriesService.FindMovimientosReciboDeNominaByClienteGuidAsync(cliente.Id);
-            return movimientos.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
+            return movimientos.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
-
+        
         /// <summary>
         /// Obtiene todos los movimientos de un cliente autenticado.
         /// </summary>
@@ -280,7 +176,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </remarks>
         /// <returns>Lista de todos los movimientos del cliente autenticado</returns>
         [Authorize]
-        public async Task<IQueryable<Movimiento>> GetMovimientosMeByClienteGuidAsync()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosMeByClienteGuidAsync()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null || !user.Identity.IsAuthenticated)
@@ -291,17 +187,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var movimientos = await movimientoService.FindAllMovimientosByClientAsync(cliente.Id);
-            return movimientos.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
+            return movimientos.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
         
         /// <summary>
@@ -313,7 +199,7 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
         /// </remarks>
         /// <returns>Lista de movimientos de transferencia revocada del cliente autenticado</returns>
         [Authorize]
-        public async Task<IQueryable<Movimiento>> GetMovimientosTransferenciaRevocadaByClienteGuidAsync()
+        public async Task<IQueryable<MovimientoResponse>> GetMovimientosTransferenciaRevocadaByClienteGuidAsync()
         {
             var user = httpContextAccessor.HttpContext?.User;
             if (user == null || !user.Identity.IsAuthenticated)
@@ -324,16 +210,6 @@ public class MovimientosQuery(IMovimientoService movimientoService,IMovimientoMe
             var guid = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var cliente = await clientService.GetClientByUserIdAsync(guid);
             var movimientos = await movimientoMeQueriesService.FindMovimientosTransferenciaRevocadaClienteGuidAsync(cliente.Id);
-            return movimientos.Select(movimiento => new Movimiento
-            {
-                Guid = movimiento.Guid,
-                ClienteGuid = movimiento.ClienteGuid,
-                Domiciliacion = movimiento.Domiciliacion,
-                IngresoDeNomina = movimiento.IngresoDeNomina,
-                PagoConTarjeta = movimiento.PagoConTarjeta,
-                Transferencia = movimiento.Transferencia,
-                CreatedAt = movimiento.CreatedAt,
-                UpdatedAt = movimiento.UpdatedAt
-            }).AsQueryable();
+            return movimientos.Select(movimiento => movimiento.ToMovimientoResponseFromModel()).AsQueryable();
         }
 }
