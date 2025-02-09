@@ -73,17 +73,21 @@ public class ProductService : GenericStorageJson<Models.Product>, IProductServic
     {
         _logger.LogInformation($"Getting product with id {productId}");
     
-        var product = await GetByIdAsync(productId);
-
+        var cachedProduct = await _cache.StringGetAsync(productId);
+        Base.Models.Product? product = !cachedProduct.IsNullOrEmpty
+            ? JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct)
+            : await _productRepository.GetByIdAsync(productId);
+    
         if (product == null)
         {
             _logger.LogError($"Product not found with id {productId}");
             throw new ProductException.ProductNotFoundException(productId);
         }
     
+        await _cache.StringSetAsync(productId, JsonConvert.SerializeObject(product), TimeSpan.FromMinutes(10));
+    
         return product.ToDtoResponse();
     }
-
 
     /// <summary>
     /// Crea un nuevo producto en el almacén de datos.
@@ -115,21 +119,24 @@ public class ProductService : GenericStorageJson<Models.Product>, IProductServic
     public async Task<ProductResponse> UpdateProductAsync(string productId, ProductUpdateRequest updateRequest)
     {
         _logger.LogInformation($"Updating product: {updateRequest} by Id: {productId}");
-        
-        var product = await GetByIdAsync(productId);
-        
+    
+        var cachedProduct = await _cache.StringGetAsync(productId);
+        Base.Models.Product? product = !cachedProduct.IsNullOrEmpty
+            ? JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct)
+            : await _productRepository.GetByIdAsync(productId);
+    
         if (product == null)
         {
             _logger.LogError($"Product not found with id {productId}");
             throw new ProductException.ProductNotFoundException(productId);
         }
-
+    
         product.Name = updateRequest.Name;
         product.UpdatedAt = DateTime.UtcNow;
-        
+    
         await _productRepository.UpdateAsync(product);
-        await _cache.KeyDeleteAsync(productId);
-
+        await _cache.StringSetAsync(productId, JsonConvert.SerializeObject(product), TimeSpan.FromMinutes(10));
+    
         return product.ToDtoResponse();
     }
 
@@ -141,42 +148,23 @@ public class ProductService : GenericStorageJson<Models.Product>, IProductServic
     public async Task<bool> DeleteProductAsync(string productId)
     {
         _logger.LogInformation($"Removing product by Id: {productId}");
-
-        var product = await GetByIdAsync(productId);
+    
+        var cachedProduct = await _cache.StringGetAsync(productId);
+        Base.Models.Product? product = !cachedProduct.IsNullOrEmpty
+            ? JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct)
+            : await _productRepository.GetByIdAsync(productId);
+    
         if (product == null)
         {
             _logger.LogError($"Product not found with id {productId}");
-            throw new ProductException.ProductNotFoundException(productId); 
+            throw new ProductException.ProductNotFoundException(productId);
         }
-
+    
         await _productRepository.DeleteAsync(productId);
         await _cache.KeyDeleteAsync(productId);
         _logger.LogInformation($"Product with Id: {productId} removed successfully.");
-        return true; 
-    }
     
-    /// <summary>
-    /// Busca un producto en caché o en la base de datos si no está en caché.
-    /// </summary>
-    /// <param name="id">ID del producto.</param>
-    /// <returns>Producto encontrado o null.</returns>
-    private async Task<Base.Models.Product?> GetByIdAsync(string id)
-    {
-        // Try to get from cache first
-        var cachedProduct = await _cache.StringGetAsync(id);
-        if (!cachedProduct.IsNullOrEmpty)
-        {
-            return JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct);
-        }
-
-        // If not in cache, get from DB and cache it
-        Base.Models.Product? product = await _productRepository.GetByIdAsync(id);
-        if (product != null)
-        {
-            await _cache.StringSetAsync(id, JsonConvert.SerializeObject(product), TimeSpan.FromMinutes(10));
-            return product;
-        }
-        return null;
+        return true;
     }
     
     /// <summary>
