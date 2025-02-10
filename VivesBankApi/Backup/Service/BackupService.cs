@@ -1,17 +1,18 @@
 ﻿using System.IO.Compression;
-using System.IO;
-using System.Reactive.Linq;
 using System.Text.Json;
 using VivesBankApi.Backup;
 using VivesBankApi.Backup.Exceptions;
 using VivesBankApi.Backup.Service;
-using VivesBankApi.Rest.Clients.Service;
-using VivesBankApi.Rest.Movimientos.Services.Movimientos;
-using VivesBankApi.Rest.Product.BankAccounts.Services;
-using VivesBankApi.Rest.Product.Base.Service;
-using VivesBankApi.Rest.Product.CreditCard.Service;
-using VivesBankApi.Rest.Product.Service;
-using VivesBankApi.Rest.Users.Service;
+using VivesBankApi.Rest.Clients.Models;
+using VivesBankApi.Rest.Clients.Repositories;
+using VivesBankApi.Rest.Movimientos.Models;
+using VivesBankApi.Rest.Movimientos.Repositories.Movimientos;
+using VivesBankApi.Rest.Product.BankAccounts.Models;
+using VivesBankApi.Rest.Product.BankAccounts.Repositories;
+using VivesBankApi.Rest.Product.Base.Models;
+using VivesBankApi.Rest.Product.CreditCard.Models;
+using VivesBankApi.Rest.Users.Models;
+using VivesBankApi.Rest.Users.Repository;
 using Path = System.IO.Path;
 
 namespace VivesBankApi.Utils.Backup
@@ -26,25 +27,13 @@ namespace VivesBankApi.Utils.Backup
         private static readonly string TempDirName = "StorageServiceTemp";
 
         // Dependencias inyectadas a través del constructor
-        private readonly ILogger<BackupService> _logger; // Logger para registrar eventos y errores
-
-        private readonly IClientService
-            _clientService; // Interfaz de servicio de clientes para interactuar con los datos de los clientes
-
-        private readonly IUserService
-            _userService; // Interfaz de servicio de usuarios para interactuar con los datos de los usuarios
-
-        private readonly IProductService
-            _productService; // Servicio de productos para interactuar con los datos de productos
-
-        private readonly ICreditCardService
-            _creditCardService; // Servicio de tarjetas de crédito para gestionar la información de tarjetas de crédito
-
-        private readonly IAccountsService
-            _bankAccountService; // Servicio de cuentas bancarias para gestionar la información de cuentas bancarias
-
-        private readonly IMovimientoService
-            _movementService; // Servicio de movimientos para acceder a los datos de transacciones
+        private readonly ILogger<BackupService> _logger;
+        private readonly IClientRepository _clientRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly IProductRepository _productRepository;
+        private readonly ICreditCardRepository _creditCardRepository;
+        private readonly IAccountsRepository _bankAccountRepository;
+        private readonly IMovimientoRepository _movimientoRepository;
 
         /// <summary>
         /// Constructor que inyecta las dependencias necesarias para el funcionamiento del servicio.
@@ -58,20 +47,20 @@ namespace VivesBankApi.Utils.Backup
         /// <param name="movementService">Servicio de movimientos</param>
         public BackupService(
             ILogger<BackupService> logger,
-            IClientService clientService,
-            IUserService userService,
-            IProductService productService,
-            ICreditCardService creditCardService,
-            IAccountsService bankAccountService,
-            IMovimientoService movementService)
+            IClientRepository clientRepository,
+            IUserRepository userRepository,
+            IProductRepository productRepository,
+            ICreditCardRepository creditCardRepository,
+            IAccountsRepository bankAccountRepository,
+            IMovimientoRepository movimientoRepository)
         {
             _logger = logger;
-            _clientService = clientService;
-            _userService = userService;
-            _productService = productService;
-            _creditCardService = creditCardService;
-            _bankAccountService = bankAccountService;
-            _movementService = movementService;
+            _clientRepository = clientRepository;
+            _userRepository = userRepository;
+            _productRepository = productRepository;
+            _creditCardRepository = creditCardRepository;
+            _bankAccountRepository = bankAccountRepository;
+            _movimientoRepository = movimientoRepository;
         }
 
         /// <summary>
@@ -94,15 +83,14 @@ namespace VivesBankApi.Utils.Backup
                     Directory.CreateDirectory(directory);
                 }
 
-                using (var zip = ZipFile.Open(zipRequest.FilePath, ZipArchiveMode.Create))
-                {
-                    zip.CreateEntry("clients.json");
-                    zip.CreateEntry("users.json");
-                    zip.CreateEntry("products.json");
-                    zip.CreateEntry("creditCards.json");
-                    zip.CreateEntry("bankAccounts.json");
-                    zip.CreateEntry("movements.json");
-                }
+                var tempDir = Path.Combine(Directory.GetCurrentDirectory(), TempDirName);
+                Directory.CreateDirectory(tempDir);
+
+                await ExportJsonFiles(tempDir);
+
+                ZipFile.CreateFromDirectory(tempDir, zipRequest.FilePath);
+
+                Directory.Delete(tempDir, true);
 
                 return zipRequest.FilePath;
             }
@@ -119,23 +107,18 @@ namespace VivesBankApi.Utils.Backup
         public async Task ImportFromZip(BackUpRequest zipFilePath)
         {
             _logger.LogInformation($"Importando datos desde ZIP: {zipFilePath.FilePath}");
-            var tempDir = Path.Combine(Directory.GetCurrentDirectory(), TempDirName); // Ruta del directorio temporal
+
+            if (!File.Exists(zipFilePath.FilePath))
+            {
+                throw new BackupException.BackupFileNotFoundException($"El archivo {zipFilePath.FilePath} no fue encontrado.");
+            }
+
+            var tempDir = Path.Combine(Directory.GetCurrentDirectory(), TempDirName);
 
             try
             {
-                // Verificar si el archivo ZIP existe
-                if (!File.Exists(zipFilePath.FilePath))
-                {
-                    throw new BackupException.BackupFileNotFoundException(
-                        $"El archivo {zipFilePath.FilePath} no fue encontrado.");
-                }
-
-                Directory.CreateDirectory(tempDir); // Crear el directorio temporal
-
-                // Extraer el contenido del archivo ZIP
+                Directory.CreateDirectory(tempDir);
                 ExtractZip(zipFilePath, tempDir);
-
-                // Importar los archivos JSON desde el directorio temporal
                 await ImportJsonFiles(tempDir);
 
                 _logger.LogInformation("Datos importados exitosamente desde ZIP: {ZipFilePath}", zipFilePath);
@@ -148,41 +131,166 @@ namespace VivesBankApi.Utils.Backup
             catch (UnauthorizedAccessException ex)
             {
                 _logger.LogError(ex, "Error de permisos al acceder al archivo ZIP.");
-                throw new BackupException.BackupPermissionException(
-                    "No se tienen permisos suficientes para acceder al archivo ZIP.", ex);
+                throw new BackupException.BackupPermissionException("No se tienen permisos suficientes para acceder al archivo ZIP.", ex);
             }
             catch (JsonException ex)
             {
                 _logger.LogError(ex, "Error: el archivo JSON es corrupto o no válido.");
-                throw new BackupException.BackupPermissionException(
-                    "El archivo JSON dentro del ZIP es corrupto o no es válido.", ex);
+                throw new BackupException.BackupPermissionException("El archivo JSON dentro del ZIP es corrupto o no es válido.", ex);
             }
-        }
-
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }        
         private async Task ImportJsonFiles(string tempDir)
         {
             foreach (var file in Directory.GetFiles(tempDir, "*.json"))
             {
                 try
                 {
+                    var fileName = Path.GetFileName(file);
                     var content = await File.ReadAllTextAsync(file);
-                    var jsonObject = JsonSerializer.Deserialize<object>(content);
 
-                    if (jsonObject == null)
+                    switch (fileName)
                     {
-                        throw new JsonException("El archivo JSON no es válido.");
+
+                        case "users.json":
+                            var users = JsonSerializer.Deserialize<List<User>>(content);
+                            if (users != null)
+                            {
+                                foreach (var user in users)
+                                {
+                                    var existingUser = await _userRepository.GetByIdAsync(user.Id); 
+                                    if (existingUser == null)
+                                    {
+                                        await _userRepository.AddAsync(user);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning($"Usuario con Id {user.Id} ya existe en la base de datos.");
+                                    }
+                                }
+                            }
+                            break;
+                        
+                        case "clients.json":
+                            var clients = JsonSerializer.Deserialize<List<Client>>(content);
+                            if (clients != null)
+                            {
+                                foreach (var client in clients)
+                                {
+                                    var existingClient = await _clientRepository.GetByIdAsync(client.Id); 
+                                    if (existingClient == null)
+                                    {
+                                        await _clientRepository.AddAsync(client);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning($"Cliente con Id {client.Id} ya existe en la base de datos.");
+                                    }
+                                }
+                            }
+                            break;
+
+                        case "products.json":
+                            var products = JsonSerializer.Deserialize<List<Product>>(content);
+                            if (products != null)
+                            {
+                                foreach (var product in products)
+                                {
+                                    var existingProduct = await _productRepository.GetByIdAsync(product.Id); 
+                                    if (existingProduct == null)
+                                    {
+                                        await _productRepository.AddAsync(product);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning($"Producto con Id {product.Id} ya existe en la base de datos.");
+                                    }
+                                }
+                            }
+                            break;
+
+                        case "creditCards.json":
+                            var creditCards = JsonSerializer.Deserialize<List<CreditCard>>(content);
+                            if (creditCards != null)
+                            {
+                                foreach (var creditCard in creditCards)
+                                {
+                                    var existingCreditCard = await _creditCardRepository.GetByIdAsync(creditCard.Id); 
+                                    if (existingCreditCard == null)
+                                    {
+                                        await _creditCardRepository.AddAsync(creditCard);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning($"Tarjeta de crédito con Id {creditCard.Id} ya existe en la base de datos.");
+                                    }
+                                }
+                            }
+                            break;
+
+                        case "bankAccounts.json":
+                            var bankAccounts = JsonSerializer.Deserialize<List<Account>>(content);
+                            if (bankAccounts != null)
+                            {
+                                foreach (var bankAccount in bankAccounts)
+                                {
+                                    var existingBankAccount = await _bankAccountRepository.GetByIdAsync(bankAccount.Id); 
+                                    if (existingBankAccount == null)
+                                    {
+                                        await _bankAccountRepository.AddAsync(bankAccount);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning($"Cuenta bancaria con Id {bankAccount.Id} ya existe en la base de datos.");
+                                    }
+                                }
+                            }
+                            break;
+
+                        case "movements.json":
+                            var movements = JsonSerializer.Deserialize<List<Movimiento>>(content);
+                            if (movements != null)
+                            {
+                                foreach (var movement in movements)
+                                {
+                                    var existingMovement = await _movimientoRepository.GetMovimientoByIdAsync(movement.Id); 
+                                    if (existingMovement == null)
+                                    {
+                                        await _movimientoRepository.AddMovimientoAsync(movement);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning($"Movimiento con Id {movement.Id} ya existe en la base de datos.");
+                                    }
+                                }
+                            }
+                            break;
+
+                        default:
+                            _logger.LogWarning($"Archivo JSON no reconocido: {fileName}");
+                            break;
                     }
 
+                    _logger.LogInformation($"Datos importados exitosamente desde el archivo: {fileName}");
                 }
                 catch (JsonException ex)
                 {
                     _logger.LogError(ex, $"Error al procesar el archivo JSON: {file}");
-                    throw new BackupException.BackupPermissionException(
-                        $"El archivo JSON {file} es corrupto o no válido.", ex);
+                    throw new BackupException.BackupPermissionException($"El archivo JSON {file} es corrupto o no válido.", ex);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Error al importar datos desde el archivo: {file}");
+                    throw new BackupException.BackupPermissionException($"Hubo un error al importar datos desde el archivo {file}.", ex);
                 }
             }
-        }
-
+        }        
         /// <summary>
         /// Extrae los archivos desde un archivo ZIP a un directorio temporal.
         /// </summary>
@@ -208,7 +316,7 @@ namespace VivesBankApi.Utils.Backup
                 throw new BackupException.BackupPermissionException("Hubo un error al extraer el archivo ZIP.", ex);
             }
         }
-
+        
         /// <summary>
         /// Exporta los archivos JSON con los datos de clientes, usuarios, productos, etc.
         /// </summary>
@@ -219,30 +327,22 @@ namespace VivesBankApi.Utils.Backup
             {
                 _logger.LogInformation("Exportando archivos JSON a {DirectoryPath}", directoryPath);
 
-                // Obtener todas las entidades necesarias
-                var clientEntities = await _clientService.GetAll();
-                var userEntities = await _userService.GetAll();
-                var productEntities = await _productService.GetAll();
-                var creditCardEntities = await _creditCardService.GetAll();
-                var bankAccountEntities = await _bankAccountService.GetAll();
-                var movementEntities = await _movementService.FindAllMovimientosAsync();
+                var clientEntities = await _clientRepository.GetAllAsync();
+                var userEntities = await _userRepository.GetAllAsync();
+                var productEntities = await _productRepository.GetAllAsync();
+                var creditCardEntities = await _creditCardRepository.GetAllAsync();
+                var bankAccountEntities = await _bankAccountRepository.GetAllAsync();
 
-                // Crear y escribir archivos JSON
-                await File.WriteAllTextAsync(Path.Combine(directoryPath, "clients.json"),
-                    JsonSerializer.Serialize(clientEntities));
-                await File.WriteAllTextAsync(Path.Combine(directoryPath, "users.json"),
-                    JsonSerializer.Serialize(userEntities));
-                await File.WriteAllTextAsync(Path.Combine(directoryPath, "products.json"),
-                    JsonSerializer.Serialize(productEntities));
-                await File.WriteAllTextAsync(Path.Combine(directoryPath, "creditCards.json"),
-                    JsonSerializer.Serialize(creditCardEntities));
-                await File.WriteAllTextAsync(Path.Combine(directoryPath, "bankAccounts.json"),
-                    JsonSerializer.Serialize(bankAccountEntities));
-                await File.WriteAllTextAsync(Path.Combine(directoryPath, "movements.json"),
-                    JsonSerializer.Serialize(movementEntities));
+                var movementEntities = await _movimientoRepository.GetAllMovimientosAsync(); 
 
-                _logger.LogInformation("Archivos JSON exportados exitosamente: {Files}",
-                    string.Join(", ", Directory.GetFiles(directoryPath)));
+                await File.WriteAllTextAsync(Path.Combine(directoryPath, "clients.json"), JsonSerializer.Serialize(clientEntities));
+                await File.WriteAllTextAsync(Path.Combine(directoryPath, "users.json"), JsonSerializer.Serialize(userEntities));
+                await File.WriteAllTextAsync(Path.Combine(directoryPath, "products.json"), JsonSerializer.Serialize(productEntities));
+                await File.WriteAllTextAsync(Path.Combine(directoryPath, "creditCards.json"), JsonSerializer.Serialize(creditCardEntities));
+                await File.WriteAllTextAsync(Path.Combine(directoryPath, "bankAccounts.json"), JsonSerializer.Serialize(bankAccountEntities));
+                await File.WriteAllTextAsync(Path.Combine(directoryPath, "movements.json"), JsonSerializer.Serialize(movementEntities));
+
+                _logger.LogInformation("Archivos JSON exportados exitosamente: {Files}", string.Join(", ", Directory.GetFiles(directoryPath)));
             }
             catch (Exception ex)
             {
@@ -250,6 +350,6 @@ namespace VivesBankApi.Utils.Backup
                 throw new BackupException.BackupPermissionException("Hubo un error al exportar los archivos JSON.", ex);
             }
         }
-    }
+    }    
 
 }

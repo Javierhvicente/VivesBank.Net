@@ -6,18 +6,16 @@ using NUnit.Framework.Legacy;
 using VivesBankApi.Backup;
 using VivesBankApi.Backup.Exceptions;
 using VivesBankApi.Rest.Clients.Models;
-using VivesBankApi.Rest.Clients.Service;
+using VivesBankApi.Rest.Clients.Repositories;
 using VivesBankApi.Rest.Movimientos.Models;
-using VivesBankApi.Rest.Movimientos.Services.Movimientos;
+using VivesBankApi.Rest.Movimientos.Repositories.Movimientos;
 using VivesBankApi.Rest.Product.BankAccounts.AccountTypeExtensions;
 using VivesBankApi.Rest.Product.BankAccounts.Models;
-using VivesBankApi.Rest.Product.BankAccounts.Services;
+using VivesBankApi.Rest.Product.BankAccounts.Repositories;
 using VivesBankApi.Rest.Product.Base.Models;
 using VivesBankApi.Rest.Product.CreditCard.Models;
-using VivesBankApi.Rest.Product.CreditCard.Service;
-using VivesBankApi.Rest.Product.Service;
 using VivesBankApi.Rest.Users.Models;
-using VivesBankApi.Rest.Users.Service;
+using VivesBankApi.Rest.Users.Repository;
 using VivesBankApi.Utils.Backup;
 using Path = System.IO.Path;
 
@@ -25,12 +23,12 @@ using Path = System.IO.Path;
 [TestOf(typeof(BackupService))]
 public class BackupServiceTest
 {
-    private Mock<IClientService> _mockClientService;
-    private Mock<IUserService> _mockUserService;
-    private Mock<IProductService> _mockProductService;
-    private Mock<ICreditCardService> _mockCreditCardService;
-    private Mock<IAccountsService> _mockBankAccountService;
-    private Mock<IMovimientoService> _mockMovementService;
+    private Mock<IClientRepository> _mockClientRepository;
+    private Mock<IUserRepository> _mockUserRepository;
+    private Mock<IProductRepository> _mockProductRepository;
+    private Mock<ICreditCardRepository> _mockCreditCardRepository;
+    private Mock<IAccountsRepository> _mockBankAccountRepository;
+    private Mock<IMovimientoRepository> _mockMovimientoRepository;
     private BackupService _backupService;
 
     private List<Client> _clients;
@@ -179,30 +177,29 @@ public class BackupServiceTest
             }
         };
 
-        _mockClientService = new Mock<IClientService>();
-        _mockUserService = new Mock<IUserService>();
-        _mockProductService = new Mock<IProductService>();
-        _mockCreditCardService = new Mock<ICreditCardService>();
-        _mockBankAccountService = new Mock<IAccountsService>();
-        _mockMovementService = new Mock<IMovimientoService>();
+        _mockClientRepository = new Mock<IClientRepository>();
+        _mockUserRepository = new Mock<IUserRepository>();
+        _mockProductRepository = new Mock<IProductRepository>();
+        _mockCreditCardRepository = new Mock<ICreditCardRepository>();
+        _mockBankAccountRepository = new Mock<IAccountsRepository>();
+        _mockMovimientoRepository = new Mock<IMovimientoRepository>();
 
-        _mockClientService.Setup(x => x.GetAll()).ReturnsAsync(_clients);
-        _mockUserService.Setup(x => x.GetAll()).ReturnsAsync(_users);
-        _mockProductService.Setup(x => x.GetAll()).ReturnsAsync(_products);
-        _mockCreditCardService.Setup(x => x.GetAll()).ReturnsAsync(_creditCards);
-        _mockBankAccountService.Setup(x => x.GetAll()).ReturnsAsync(_accounts);
-        _mockMovementService.Setup(x => x.FindAllMovimientosAsync()).ReturnsAsync(_movements);
+        _mockClientRepository.Setup(x => x.GetAllAsync()).ReturnsAsync(_clients);
+        _mockUserRepository.Setup(x => x.GetAllAsync()).ReturnsAsync(_users);
+        _mockProductRepository.Setup(x => x.GetAllAsync()).ReturnsAsync(_products);
+        _mockCreditCardRepository.Setup(x => x.GetAllAsync()).ReturnsAsync(_creditCards);
+        _mockBankAccountRepository.Setup(x => x.GetAllAsync()).ReturnsAsync(_accounts);
+        _mockMovimientoRepository.Setup(x => x.GetAllMovimientosAsync()).ReturnsAsync(_movements);
 
         _backupService = new BackupService(
             Mock.Of<ILogger<BackupService>>(),
-            _mockClientService.Object,
-            _mockUserService.Object,
-            _mockProductService.Object,
-            _mockCreditCardService.Object,
-            _mockBankAccountService.Object,
-            _mockMovementService.Object
+            _mockClientRepository.Object,
+            _mockUserRepository.Object,
+            _mockProductRepository.Object,
+            _mockCreditCardRepository.Object,
+            _mockBankAccountRepository.Object,
+            _mockMovimientoRepository.Object
         );
-        
     }
 
     [Test]
@@ -250,18 +247,6 @@ public class BackupServiceTest
         Assert.ThrowsAsync<ArgumentException>(async () => await _backupService.ExportToZip(zipRequest));
     }
 
-    /*
-    [Test]
-    public void ExportToZipPermissionDenied()
-    {
-        var tempDir = Path.Combine("C:\\Windows\\System32", "testBackup.zip");
-        var zipRequest = new BackUpRequest { FilePath = tempDir };
-
-        Assert.ThrowsAsync<BackupException.BackupPermissionException>(async () => await _backupService.ExportToZip(zipRequest));
-    }
-    */
-    
-
     [Test]
     public void ImportFromZipFileNotFound()
     {
@@ -274,7 +259,7 @@ public class BackupServiceTest
 
         Assert.That(caughtException.Message, Is.EqualTo("El archivo nonexistent.zip no fue encontrado."));
     }
-    
+
     [Test]
     public async Task ImportFromZip_Success()
     {
@@ -308,12 +293,12 @@ public class BackupServiceTest
 
         await _backupService.ImportFromZip(zipRequest);
 
-        _mockClientService.Verify(x => x.GetAll(), Times.Never);
-        _mockUserService.Verify(x => x.GetAll(), Times.Never);
-        _mockProductService.Verify(x => x.GetAll(), Times.Never);
-        _mockCreditCardService.Verify(x => x.GetAll(), Times.Never);
-        _mockBankAccountService.Verify(x => x.GetAll(), Times.Never);
-        _mockMovementService.Verify(x => x.FindAllMovimientosAsync(), Times.Never);
+        _mockClientRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        _mockUserRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        _mockProductRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        _mockCreditCardRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        _mockBankAccountRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        _mockMovimientoRepository.Verify(x => x.GetAllMovimientosAsync(), Times.Never);
 
         File.Delete(zipFilePath);
         Directory.Delete(tempDir, true);
@@ -346,6 +331,4 @@ public class BackupServiceTest
         File.Delete(zipFilePath);
         Directory.Delete(tempDir, true);
     }
-    
-    
 }
