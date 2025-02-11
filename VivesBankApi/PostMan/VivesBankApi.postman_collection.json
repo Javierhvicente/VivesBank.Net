@@ -1,9 +1,9 @@
 {
 	"info": {
-		"_postman_id": "7680a552-2983-446f-92f0-276ee331741f",
+		"_postman_id": "e9c9e544-af8d-4e75-af55-c1819a0e5140",
 		"name": "VivesBankApi",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "40255473"
+		"_exporter_id": "38648668"
 	},
 	"item": [
 		{
@@ -129,6 +129,186 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Register User",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"dni\": \"47319792Y\",\r\n    \"password\": \"CalamarRumano123\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/User/register",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"User",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login admin",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"dni\": \"70919049K\",\r\n    \"password\": \"CalamarRumano123\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/User/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"User",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get my user data",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJiUGtUa3NBUDh6NCIsImV4cCI6MTczNzczMTI4NSwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.3pxJKKqtSCr_hf_1D-HZUsSVmZCZQXqtQue0MTKR2Bw",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/User/me",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"User",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Darse de baja",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJDMDMtVGxKTkpWVSIsImV4cCI6MTczNzczMDQ1NSwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.WmdL4Mj9X93O8FbNWu5AlhWe4uE3AnXHniH_0hjt0zE",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5174/api/User/baja",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"User",
+								"baja"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJFSUU0S2pJTXhlUSIsImV4cCI6MTczNzczMDE4NywiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.Ycur5un_CAzAPFrg1RUWoxS5FGJnJThpapocZPzUdSg",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"password\": \"CalamarNicaraguense123\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/User/password",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"User",
+								"password"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -179,11 +359,21 @@
 				{
 					"name": "Create Client",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiI2VzZ5aVF1Skc2NCIsImV4cCI6MTczNzczMzg1OCwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.sxlcJ-EozCLfg7Bf8nMs-USMPWtrTV5paquvgx6fshE",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n  \"fullName\": \"ClienteTest\",\r\n  \"photo\": \"URLTEST\",\r\n  \"photoDni\": \"URLTEST\",\r\n  \"address\": \"addressTest\",\r\n  \"userId\": \"bUNt8C8v7cw\"\r\n}",
+							"raw": "{\r\n  \"fullName\": \"ClienteTest\",\r\n  \"address\": \"addressTest\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -191,7 +381,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://localhost:5174/api/Client",
+							"raw": "http://localhost:5174/api/Client/toclient",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -199,7 +389,8 @@
 							"port": "5174",
 							"path": [
 								"api",
-								"Client"
+								"Client",
+								"toclient"
 							]
 						}
 					},
@@ -251,6 +442,298 @@
 								"api",
 								"Client",
 								"u3iNc0QMNSo"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get my data as Client",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJ0UHpMYnhETGlEbyIsImV4cCI6MTczNzU0MzE5MiwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.OMNUZ_QSptGw_DSov3gViplMt6Ox1kECdg9S_Qu0wrw",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5174/api/Client/me",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Dni Photo",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiI2VzZ5aVF1Skc2NCIsImV4cCI6MTczNzczMzg1OCwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.sxlcJ-EozCLfg7Bf8nMs-USMPWtrTV5paquvgx6fshE",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "",
+									"type": "file",
+									"src": "postman-cloud:///1ef9b905-c8c7-4700-a787-ddf0f7911e86"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/Client/8h3_fK6U1Ws/dni",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"8h3_fK6U1Ws",
+								"dni"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login as client",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"dni\": \"56780182J\",\r\n    \"password\": \"CalamarRumano123\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/User/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"User",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "to client",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJVaXJZdmxDLUwtWSIsImV4cCI6MTczODU5ODcyMiwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.ECXeeAcV_3lnJC1E3cB2kmbu-7Uj44GN8A4ga72NRPs",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"fullName\": \"Francisco Chico\",\r\n  \"address\": \"Calle de al lao 2\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/Client/toclient",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"toclient"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "darse de baja",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRUhaTXZoNmtwayIsImV4cCI6MTczODAwNTUwMSwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.uBehqa1RT8y67cNKRo0LqAhkBfPa6n2WyMI0kJqK7MU",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5174/api/Client/baja",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"baja"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar foto perfil",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJlUXg1ZHp5bTl1NCIsImV4cCI6MTczODAwMzk2NywiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.vnmGp2qYs5VdjKkRWBLsT_E4Jlqh_fbtJler08ahuF8",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "",
+									"type": "file",
+									"src": "postman-cloud:///1ef9b905-c8c7-4700-a787-ddf0f7911e86"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/Client/eZN5BeYLge0/profile",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"eZN5BeYLge0",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update me as client",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJPLVRlSkp4Z1M2VSIsImV4cCI6MTczODAwNzQzMSwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.I_Bdq_tcKeEdCnnTNZ2kClrb-HKNM7AWXKBLCJtcqUI",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"fullName\": \"Samuel\",\r\n    \"address\": \"Grieta del Invocador\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/Client/me",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "extraer mis momvimientos a pdf",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRW0tNkpDMTY0NCIsImV4cCI6MTczODYyMjMzNiwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.4WR4xeQ7vIVNTc4z-q-pWBjT5bqaMDVuFSblgDcX6b0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5174/api/Client/me/export/transactions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Client",
+								"me",
+								"export",
+								"transactions"
 							]
 						}
 					},
@@ -422,11 +905,21 @@
 				{
 					"name": "Create Account",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRW0tNkpDMTY0NCIsImV4cCI6MTczODYyMTQ3MCwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.pgSMto5ffCVJmw7MDqKixUttWtU9XjaCFAv2fzRmmyg",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n  \"productName\": \"string\",\r\n  \"clientId\": \"u3iNc0QMNSo\",\r\n  \"accountType\": 0\r\n}",
+							"raw": "{\r\n  \"productName\": \"Savings Account\",\r\n  \"clientId\": \"a4aYJGKnjbM\",\r\n  \"accountType\": 0\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -549,11 +1042,21 @@
 				{
 					"name": "Create Credit Card",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRW0tNkpDMTY0NCIsImV4cCI6MTczODYwMTg4MywiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.TzgySjeuCWVMGCDJFHSgUKLKJx78WqWfYTFA1oRwKAU",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n  \"pin\": \"1111\",\r\n  \"AccountIban\": \"ES0201280001003984738031\"\r\n}",
+							"raw": "{\r\n  \"pin\": \"1111\",\r\n  \"AccountIban\": \"ES6501280001001919570619\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -621,6 +1124,167 @@
 								"api",
 								"CreditCard",
 								"tIKVFDBtLmo"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete my credit card",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRW0tNkpDMTY0NCIsImV4cCI6MTczODIzNzgyNSwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.4ZyNsjkecQPNPtSwvXY00qtNAg8pHy7dh4iFpc42Rk4",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5174/api/CreditCard/1234567812345678",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"CreditCard",
+								"1234567812345678"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update my credit card",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRW0tNkpDMTY0NCIsImV4cCI6MTczODIzNDcwMCwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.R3UA2J7wpCVQda4dyBW-0WGm2keaVMF6mtBsu6_71_c",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"pin\": \"0099\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/CreditCard/1234567812345678",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"CreditCard",
+								"1234567812345678"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Storage",
+			"item": [
+				{
+					"name": "export backup",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiIzR19hOUJleEpRIiwiZXhwIjoxNzM4NTg1NjA1LCJpc3MiOiIyREFXIiwiYXVkIjoiMkRBVyJ9.vyQn93vt23W4tH3Pe2eObMqi6gRHtl5QaxTZiPnDqCE",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"filePath\": \"C:\\\\\\\\2DAW\\\\\\\\DesWebEntServ\\\\\\\\VivesBank.Net\\\\\\\\VivesBankApi\\\\\\\\backup\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/Backup/export",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Backup",
+								"export"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Movimientos",
+			"item": [
+				{
+					"name": "Transferencia",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOiJIRW0tNkpDMTY0NCIsImV4cCI6MTczODYyMjMzNiwiaXNzIjoiMkRBVyIsImF1ZCI6IjJEQVcifQ.4WR4xeQ7vIVNTc4z-q-pWBjT5bqaMDVuFSblgDcX6b0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"ibanOrigen\": \"ES7620770024003102575766\",\r\n  \"ibanDestino\": \"ES9121000418450200051332\",\r\n  \"cantidad\": 500,\r\n  \"nombreBeneficiario\": \"José María Giménez\",\r\n  \"movimientoDestino\": \"José María Giménez\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5174/api/Movimiento/Transferencia",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5174",
+							"path": [
+								"api",
+								"Movimiento",
+								"Transferencia"
 							]
 						}
 					},
