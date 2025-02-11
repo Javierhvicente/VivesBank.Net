@@ -2,10 +2,12 @@ using System.Net;
 using System.Text.Json;
 using VivesBankApi.Backup.Exceptions;
 using VivesBankApi.Rest.Clients.Exceptions;
+using VivesBankApi.Rest.Context.Exceptions;
 using VivesBankApi.Rest.Movimientos.Exceptions;
 using VivesBankApi.Rest.Product.CreditCard.Exceptions;
 using VivesBankApi.Rest.Products.BankAccounts.Exceptions;
 using VivesBankApi.Rest.Users.Exceptions;
+using VivesBankApi.Utils.IbanGenerator.Exceptions;
 
 namespace ApiFunkosCS.Utils.ExceptionMiddleware;
 
@@ -172,6 +174,26 @@ public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExcep
                     logger.LogWarning(exception, exception.Message);
                     break;
              
+                /************************** CONTEXT EXCEPTIONS *****************************************************/
+                case ContextExceptions.HttContextNull:
+                    statusCode = HttpStatusCode.BadRequest;
+                    errorResponse = new { message = exception.Message };
+                    logger.LogWarning(exception, exception.Message);
+                    break;
+
+                case ContextExceptions.UserIdMissing:
+                    statusCode = HttpStatusCode.NotFound;
+                    errorResponse = new { message = exception.Message };
+                    logger.LogWarning(exception, exception.Message);
+                    break;
+                
+                /************************** IBANGENERATOR EXCEPTIONS *****************************************************/
+                case IbanGeneratorExceptions.IbanGeneratorFail:
+                    statusCode = HttpStatusCode.BadRequest;
+                    errorResponse = new { message = exception.Message };
+                    logger.LogWarning(exception, exception.Message);
+                    break;
+                
                 /************************** STORAGE EXCEPTIONS *****************************************************/
                 /************************** BACKUP *****************************************************/
                 case BackupException.BackupPermissionException:

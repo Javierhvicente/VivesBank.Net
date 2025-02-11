@@ -14,9 +14,12 @@ using VivesBankApi.Rest.Products.BankAccounts.Exceptions;
 using VivesBankApi.Rest.Users.Dtos;
 using VivesBankApi.Rest.Users.Exceptions;
 using VivesBankApi.Rest.Users.Models;
+using Microsoft.Extensions.Caching.Memory;
+using VivesBankApi.Rest.Context.Exceptions;
 using VivesBankApi.Rest.Users.Service;
 using VivesBankApi.Utils.GenericStorage.JSON;
 using VivesBankApi.Utils.IbanGenerator;
+using VivesBankApi.Utils.IbanGenerator.Exceptions;
 using VivesBankApi.WebSocket.Model;
 using VivesBankApi.WebSocket.Service;
 
@@ -63,7 +66,8 @@ public class AccountService : GenericStorageJson<Account>, IAccountsService
         IConnectionMultiplexer connection, 
         IHttpContextAccessor httpContextAccessor, 
         IUserService userService, 
-        IWebsocketHandler websocketHandler)
+        IWebsocketHandler websocketHandler
+       )
         : base(logger)
     {
         _ibanGenerator = ibanGenerator;
@@ -74,6 +78,7 @@ public class AccountService : GenericStorageJson<Account>, IAccountsService
         _httpContextAccessor = httpContextAccessor;
         _userService = userService;
         _websocketHandler = websocketHandler;
+    
     }
     
     /// <summary>
@@ -204,13 +209,13 @@ public class AccountService : GenericStorageJson<Account>, IAccountsService
         _logger.LogInformation("Creating account for Client registered on the system");
 
         if (_httpContextAccessor.HttpContext == null)
-            throw new Exception("HttpContext is null");
+            throw new ContextExceptions.HttContextNull();
 
         var user = _httpContextAccessor.HttpContext.User;
 
         var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(id))
-            throw new Exception("User ID claim is missing");
+            throw new ContextExceptions.UserIdMissing();
 
         var userForFound = await _userService.GetUserByIdAsync(id)
                            ?? throw new UserNotFoundException(id);
@@ -223,7 +228,7 @@ public class AccountService : GenericStorageJson<Account>, IAccountsService
 
         var iban = await _ibanGenerator.GenerateUniqueIbanAsync();
         if (string.IsNullOrWhiteSpace(iban))
-            throw new Exception("IBAN generation failed");
+            throw new IbanGeneratorExceptions.IbanGeneratorFail();
 
         var account = request.fromDtoRequest();
         account.ClientId = client.Id;

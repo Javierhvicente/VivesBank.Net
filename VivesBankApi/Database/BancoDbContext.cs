@@ -45,4 +45,31 @@ public class BancoDbContext : DbContext
     /// Representa la tabla de tarjetas de crédito en la base de datos.
     /// </summary>
     public DbSet<CreditCard> Cards { get; set; }
+
+
+    /// <summary>
+    /// Configura el comportamiento de las propiedades de fecha de la entidad Account.
+    /// </summary>
+    /// <remarks>
+    /// - La propiedad <c>CreatedAt</c> se establece como requerida y se genera automáticamente
+    ///   cuando se agrega una nueva entidad (fecha de creación).
+    /// - La propiedad <c>UpdatedAt</c> se establece como requerida y se actualiza automáticamente
+    ///   cuando la entidad es modificada (fecha de la última actualización).
+    /// </remarks>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Configuración de la entidad Account
+        modelBuilder.Entity<Account>(entity =>
+        {
+            entity.Property(e => e.CreatedAt)
+                .IsRequired()  
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.UpdatedAt)
+                .IsRequired()  
+                .ValueGeneratedOnUpdate(); 
+        });
+    }
+
+
 }
