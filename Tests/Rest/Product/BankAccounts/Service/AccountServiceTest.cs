@@ -19,6 +19,8 @@ using VivesBankApi.Rest.Users.Exceptions;
 using VivesBankApi.Rest.Users.Service;
 using VivesBankApi.Utils.IbanGenerator;
 using VivesBankApi.WebSocket.Service;
+using Microsoft.Extensions.Caching.Memory;
+using VivesBankApi.Utils.IbanGenerator.Exceptions;
 using Role = VivesBankApi.Rest.Users.Models.Role;
 
 namespace Tests.Rest.Product.BankAccounts.Service;
@@ -65,7 +67,7 @@ public class AccountServiceTest
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims));
         _httpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
-
+        
         _accountService = new AccountService(
             _logger.Object,
             _ibanGenerator.Object,
@@ -254,7 +256,8 @@ public class AccountServiceTest
         var mockIbanGenerator = new Mock<IIbanGenerator>(); 
         var mockProductRepository = new Mock<IProductRepository>();
         var mockConnectionMultiplexer = new Mock<IConnectionMultiplexer>(); 
-        var mockWebsocketHandler = new Mock<IWebsocketHandler>(); 
+        var mockWebsocketHandler = new Mock<IWebsocketHandler>();
+
 
         var userId = "test-user-id";
         var mockUser = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
@@ -810,7 +813,7 @@ public class AccountServiceTest
 
         var request = new CreateAccountRequest { ProductName = "TestProduct" };
 
-        Assert.ThrowsAsync<Exception>(async () => 
+        Assert.ThrowsAsync<IbanGeneratorExceptions.IbanGeneratorFail>(async () => 
             await _accountService.CreateAccountAsync(request), "IBAN generation failed");
     }
 
