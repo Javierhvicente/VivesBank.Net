@@ -107,8 +107,6 @@ public class WebSocketHandler : IWebsocketHandler
         var json = JsonConvert.SerializeObject(notification, jsonSettings);
         var buffer = Encoding.UTF8.GetBytes(json);
         
-        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
-
         try
         {
             await socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
