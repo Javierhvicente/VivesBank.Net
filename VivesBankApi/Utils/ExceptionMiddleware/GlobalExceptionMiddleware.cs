@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.WebSockets;
 using System.Text.Json;
 using VivesBankApi.Backup.Exceptions;
 using VivesBankApi.Rest.Clients.Exceptions;
@@ -168,6 +169,13 @@ public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExcep
                 
                 case ClientExceptions.ClientNotFoundException:
                     statusCode = HttpStatusCode.NotFound;
+                    errorResponse = new { message = exception.Message };
+                    logger.LogWarning(exception, exception.Message);
+                    break;
+                
+                /************************** WEBSOCKET EXCEPTIONS *****************************************************/
+                case WebSocketException:
+                    statusCode = HttpStatusCode.BadGateway;
                     errorResponse = new { message = exception.Message };
                     logger.LogWarning(exception, exception.Message);
                     break;

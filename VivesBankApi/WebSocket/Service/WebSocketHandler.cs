@@ -52,7 +52,6 @@ public class WebSocketHandler : IWebsocketHandler
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task NotifyAllAsync<T>(Notification<T> notification)
     {
-        // Serialize notification to JSON while ignoring null values
         var jsonSettings = new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
@@ -62,11 +61,21 @@ public class WebSocketHandler : IWebsocketHandler
         _logger.LogInformation($"Notifying all clients: {json}");
 
         var buffer = Encoding.UTF8.GetBytes(json);
+    
+        var tasks = _sockets.Select(async socket =>
+        {
+            try
+            {
+                await socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+            catch (WebSocketException ex)
+            {
+                _logger.LogError($"Error sending WebSocket message: {ex.Message}");
+                throw new WebSocketException($"Failed to send notification: {ex.Message}", ex);
+            }
+        }).ToArray();
 
-        var tasks = _sockets.Select(socket =>
-            socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None))
-            .ToArray();
-        await Task.WhenAll(tasks); 
+        await Task.WhenAll(tasks);
     }
 
     /// <summary>
@@ -78,22 +87,35 @@ public class WebSocketHandler : IWebsocketHandler
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task NotifyUserAsync<T>(string username, Notification<T> notification)
     {
-        if (_userSockets.TryGetValue(username, out var socket))
+        if (!_userSockets.TryGetValue(username, out var socket))
         {
-            var jsonSettings = new JsonSerializerSettings
-            {
-                NullValueHandling = NullValueHandling.Ignore,
-                Formatting = Formatting.Indented
-            };
-            var json = JsonConvert.SerializeObject(notification, jsonSettings);
-            var buffer = Encoding.UTF8.GetBytes(json);
+            _logger.LogWarning($"User '{username}' not found.");
+            throw new InvalidOperationException($"Cannot send notification. User '{username}' is not connected.");
+        }
 
+        if (socket.State != WebSocketState.Open)
+        {
+            _logger.LogError($"WebSocket for user '{username}' is not open. Current state: {socket.State}");
+            throw new WebSocketException($"Cannot send message. WebSocket for user '{username}' is in state: {socket.State}");
+        }
+
+        var jsonSettings = new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            Formatting = Formatting.Indented
+        };
+        var json = JsonConvert.SerializeObject(notification, jsonSettings);
+        var buffer = Encoding.UTF8.GetBytes(json);
+        
+        try
+        {
             await socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
             _logger.LogInformation($"Notification sent to {username}: {json}");
         }
-        else
+        catch (WebSocketException ex)
         {
-            _logger.LogWarning($"User '{username}' not found.");
+            _logger.LogError($"Failed to send WebSocket message to {username}: {ex.Message}");
+            throw new WebSocketException($"Error sending WebSocket message to {username}: {ex.Message}", ex);
         }
     }
 
