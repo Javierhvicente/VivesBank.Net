@@ -207,10 +207,11 @@ namespace VivesBankApi.Rest.Clients.Controller
         
         [HttpDelete("borrarDatos")]
         [Authorize("ClientPolicy")]
-        public async Task DeleteMeData()
+        public async Task<ClientResponse> DeleteMeData()
         {
             _logger.LogInformation($"Deleting client data registered on the system");
-            await _clientService.DeleteMeData();
+            var cliente = await _clientService.DeleteMeData();
+            return cliente;
         }
 
         /// <summary>
