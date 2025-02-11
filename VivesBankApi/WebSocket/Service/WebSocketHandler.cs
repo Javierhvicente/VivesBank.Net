@@ -35,13 +35,26 @@ public class WebSocketHandler : IWebsocketHandler
         _sockets.Add(webSocket); 
 
         var buffer = new byte[1024 * 4]; 
-        var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-        while (!result.CloseStatus.HasValue)
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+        try
+        {
+            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-        _sockets.Remove(webSocket);
-        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+            while (!result.CloseStatus.HasValue)
+            {
+                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            }
+        }
+        catch (WebSocketException ex)
+        {
+            _logger.LogError($"Error receiving WebSocket data: {ex.Message}");
+            await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Error receiving data", CancellationToken.None);
+        }
+        finally
+        {
+            _sockets.Remove(webSocket);
+            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
+        }
     }
 
     /// <summary>
@@ -110,14 +123,25 @@ public class WebSocketHandler : IWebsocketHandler
         _logger.LogInformation($"Number of connected users: {_userSockets.Count}");
 
         var buffer = new byte[1024 * 4];
-        var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-        while (!result.CloseStatus.HasValue)
+        try
         {
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-        }
+            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-        _userSockets.TryRemove(username, out _);
-        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+            while (!result.CloseStatus.HasValue)
+            {
+                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            }
+        }
+        catch (WebSocketException ex)
+        {
+            _logger.LogError($"Error receiving WebSocket data for user {username}: {ex.Message}");
+            await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Error receiving data", CancellationToken.None);
+        }
+        finally
+        {
+            _userSockets.TryRemove(username, out _);
+            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
+        }
     }
 }
