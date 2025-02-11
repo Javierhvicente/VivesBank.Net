@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FluentFTP;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Newtonsoft.Json;
 using StackExchange.Redis;
 using VivesBankApi.Middleware.Jwt;
@@ -20,6 +21,12 @@ using VivesBankApi.WebSocket.Model;
 using VivesBankApi.WebSocket.Service;
 using Path = System.IO.Path;
 using Role = VivesBankApi.Rest.Users.Models.Role;
+/*
+ * Cambiar find by id que salte la excepcion directamente, mejorar el filtrado,
+ * que no devuelva 500 el controlador, usar mapper para actualizar clientes
+ * update cliente no borra la foto anterior
+ */
+
 
 
 /// <summary>
@@ -921,23 +928,69 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         /// <response code="500">Hubo un error al crear el archivo.</response>
         public async Task<FileStream> ExportOnlyMeData(Client client)
         {
-            _logger.LogInformation($"Exporting Client to a JSON file");
-            var json = JsonConvert.SerializeObject(client, Formatting.Indented);
-            var directoryPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "Json");
-
-            if (!Directory.Exists(directoryPath))
+            try
             {
-                Directory.CreateDirectory(directoryPath);
+                _logger.LogInformation($"Exporting Client to a JSON file");
+                var json = JsonConvert.SerializeObject(client, Formatting.Indented);
+                var directoryPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "Json");
+
+                if (!Directory.Exists(directoryPath))
+                {
+                    Directory.CreateDirectory(directoryPath);
+                }
+
+                var fileName = "Client_WithId_" + client.Id + "_" + "InSystem-" +
+                               DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".json";
+                var filePath = Path.Combine(directoryPath, fileName);
+
+                await File.WriteAllTextAsync(filePath, json);
+
+                _logger.LogInformation($"File written to: {filePath}");
+
+                return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            catch (Exception ex)
+            {
+                //Cambiar a BadRequest Error de serializacion
+                throw new ClientExceptions.ClientAlreadyExistsException("Error al transformar el cliente en PDF");
+            }
+        }
+
+        public async Task<ClientResponse> DeleteMeData()
+        {
+            _logger.LogInformation("Deleting data of the current user.");
+            var user = _httpContextAccessor.HttpContext!.User;
+            var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userForFound = await _userService.GetUserByIdAsync(id);
+            if (userForFound == null)
+                throw new UserNotFoundException(id);
+            var client = await _clientRepository.getByUserIdAsync(userForFound.Id);
+            if (client == null)
+                throw new ClientExceptions.ClientNotFoundException(userForFound.Id);
+            client = DeleteData(client);
+            return client.ToResponse();
+        }
+
+        private Client DeleteData(Client cliente)
+        {
+            cliente.FullName = "null";
+            cliente.Adress = "null";
+
+            if (cliente.Photo != "defaultProfile.png")
+            { 
+                DeleteFileAsync(cliente.Photo);
+                cliente.Photo = "defaultProfile.png";
             }
 
-            var fileName = "Client_WithId_" + client.Id + "_" + "InSystem-" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".json";
-            var filePath = Path.Combine(directoryPath, fileName);
+            if (cliente.PhotoDni != "defaultDni.png")
+            {
+                DeleteFileFromFtpAsync(cliente.PhotoDni);
+                cliente.PhotoDni = "defaultDni.png";
+            }
+            cliente.UpdatedAt = DateTime.UtcNow;
+            cliente.IsDeleted = true;
 
-            await File.WriteAllTextAsync(filePath, json);
-
-            _logger.LogInformation($"File written to: {filePath}");
-
-            return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return cliente;
         }
     }
     

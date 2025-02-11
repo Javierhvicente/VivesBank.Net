@@ -204,6 +204,14 @@ namespace VivesBankApi.Rest.Clients.Controller
             _logger.LogInformation($"Deleting client registered on the system");
             await _clientService.DeleteMe();
         }
+        
+        [HttpDelete("borrarDatos")]
+        [Authorize("ClientPolicy")]
+        public async Task DeleteMeData()
+        {
+            _logger.LogInformation($"Deleting client data registered on the system");
+            await _clientService.DeleteMeData();
+        }
 
         /// <summary>
         /// Actualiza la foto del DNI del cliente.
