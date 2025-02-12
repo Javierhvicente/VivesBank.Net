@@ -162,21 +162,29 @@ public class ProductService : GenericStorageJson<Models.Product>, IProductServic
     /// <returns>Producto encontrado o null.</returns>
     private async Task<Base.Models.Product?> GetByIdAsync(string id)
     {
-        // Try to get from cache first
-        var cachedProduct = await _cache.StringGetAsync(id);
-        if (!cachedProduct.IsNullOrEmpty)
-        {
-            return JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct);
-        }
+        return await GetProductFromCacheAsync(id)
+               ?? await GetProductFromRepositoryAndCacheAsync(id);
+    }
 
-        // If not in cache, get from DB and cache it
-        Base.Models.Product? product = await _productRepository.GetByIdAsync(id);
+    private async Task<Base.Models.Product?> GetProductFromCacheAsync(string id)
+    {
+        var cachedProduct = await _cache.StringGetAsync(id);
+        return !cachedProduct.IsNullOrEmpty ? JsonConvert.DeserializeObject<Base.Models.Product>(cachedProduct) : null;
+    }
+
+    private async Task<Base.Models.Product?> GetProductFromRepositoryAndCacheAsync(string id)
+    {
+        var product = await _productRepository.GetByIdAsync(id);
         if (product != null)
         {
-            await _cache.StringSetAsync(id, JsonConvert.SerializeObject(product), TimeSpan.FromMinutes(10));
-            return product;
+            await CacheProductAsync(id, product);
         }
-        return null;
+        return product;
+    }
+
+    private async Task CacheProductAsync(string id, Base.Models.Product product)
+    {
+        await _cache.StringSetAsync(id, JsonConvert.SerializeObject(product), TimeSpan.FromMinutes(10));
     }
     
     /// <summary>
