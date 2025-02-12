@@ -155,17 +155,9 @@ namespace VivesBankApi.Rest.Clients.Controller
         public async Task<IActionResult> GetMeDataAsClient()
         {
             _logger.LogInformation("Exporting client data as a JSON file");
-            try
-            {
-                var user = await _clientService.GettingMyClientData();
-                var fileStream = await _clientService.ExportOnlyMeData(user.FromDtoResponse());
-                return File(fileStream, "application/json", "user.json");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error exporting client: {ex.Message}");
-                return StatusCode(500, new { message = "Error exporting client", details = ex.Message });
-            }
+            var user = await _clientService.GettingMyClientData();
+            var fileStream = await _clientService.ExportOnlyMeData(user.FromDtoResponse());
+            return File(fileStream, "application/json", "user.json");
         }
 
         /// <summary>
@@ -342,10 +334,23 @@ namespace VivesBankApi.Rest.Clients.Controller
 
             var fileStream = await _clientService.GettingMyDniPhotoFromFtpAsync();
 
+
             var mimeType = MimeTypes.GetMimeType(Path.GetExtension(fileStream.Name));
 
             _logger.LogInformation($"Returning DNI photo from FTP: {Path.GetFileName(fileStream.Name)} with MIME type: {mimeType}");
             return File(fileStream, mimeType, Path.GetFileName(fileStream.Name));
+        }
+        
+        /// <summary>
+        /// Elimina los datos de un cliente asociado a un usuario autenticado.
+        /// </summary>
+        [HttpDelete("borrarDatos")]
+        [Authorize("ClientPolicy")]
+        public async Task<ActionResult<ClientResponse>> DeleteMeData()
+        {
+            _logger.LogInformation($"Deleting client data registered on the system");
+            var cliente = await _clientService.DeleteMeData();
+            return Ok(cliente);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FluentFTP;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Newtonsoft.Json;
 using StackExchange.Redis;
 using VivesBankApi.Middleware.Jwt;
@@ -20,7 +21,6 @@ using VivesBankApi.WebSocket.Model;
 using VivesBankApi.WebSocket.Service;
 using Path = System.IO.Path;
 using Role = VivesBankApi.Rest.Users.Models.Role;
-
 
 /// <summary>
 /// Service for managing client-related operations such as fetching, creating, updating, and deleting clients.
@@ -124,15 +124,9 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         /// <returns>The client response for the authenticated user.</returns>
         public async Task<ClientResponse> GettingMyClientData()
         {
-            var user = _httpContextAccessor.HttpContext!.User;
-            var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userForFound = await _userService.GetUserByIdAsync(id);
-            if (userForFound == null)
-                throw new UserNotFoundException(id);
-            var client = await _clientRepository.getByUserIdAsync(userForFound.Id);
-            if (client == null)
-                throw new ClientExceptions.ClientNotFoundException(userForFound.Id);
-            return client.ToResponse();
+            var userId = await ValidateLoggedUser();
+            var client = await ValidateClientOfUser(userId!);
+            return client!.ToResponse();
         }
 
         /// <summary>
@@ -143,7 +137,13 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         public async Task<ClientResponse> GetClientByIdAsync(string id)
         {
             _logger.LogInformation($"Getting Client by id {id}");
-            var res = await GetByIdAsync(id) ?? throw new ClientExceptions.ClientNotFoundException(id);
+            var cachedClient = await _cache.StringGetAsync(id);
+            if (!cachedClient.IsNullOrEmpty)
+            {
+                return JsonConvert.DeserializeObject<ClientResponse>(cachedClient);
+            }
+            var res = await FindClient(id);
+            await _cache.StringSetAsync(id, JsonConvert.SerializeObject(res), TimeSpan.FromMinutes(10));
             return res.ToResponse();
         }
 
@@ -156,6 +156,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         {
             _logger.LogInformation($"Getting client by user id {userId}");
             var res = await _clientRepository.getByUserIdAsync(userId) ?? throw new ClientExceptions.ClientNotFoundException(userId);
+            await _cache.StringSetAsync(res.Id, JsonConvert.SerializeObject(res), TimeSpan.FromMinutes(10));
             return res.ToResponse();
         }
 
@@ -166,12 +167,9 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         /// <returns>A JWT token for the created user.</returns>
         public async Task<String> CreateClientAsync(ClientRequest request)
         {
-            var user = _httpContextAccessor.HttpContext!.User;
-            var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userForFound = await _userService.GetUserByIdAsync(id);
-        
-            if (userForFound == null)
-                throw new UserNotFoundException(id);
+            _logger.LogInformation("Creating new client");
+
+            var id = await ValidateLoggedUser();
         
             var existingClient = await _clientRepository.getByUserIdAsync(id);
             if (existingClient != null)
@@ -193,6 +191,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
             await _clientRepository.AddAsync(client);
             
             var updatedUser = await _userService.GetUserByIdAsync(id);
+            await _cache.StringSetAsync(client.Id, JsonConvert.SerializeObject(client), TimeSpan.FromMinutes(10));
             _logger.LogDebug($"Updating user for client role: {updatedUser.Role}");
             return _jwtGenerator.GenerateJwtToken(updatedUser.ToUser());
         }
@@ -206,7 +205,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         public async Task<ClientResponse> UpdateClientAsync(string id, ClientUpdateRequest request)
         {
             _logger.LogInformation($"Updating client with id {id}");
-            var clientToUpdate = await GetByIdAsync(id) ??  throw new ClientExceptions.ClientNotFoundException(id);
+            var clientToUpdate = await FindClient(id);
             clientToUpdate.Adress = request.Address;
             clientToUpdate.FullName = request.FullName;
             clientToUpdate.UpdatedAt = DateTime.UtcNow;
@@ -222,11 +221,10 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         /// <returns>The updated client response.</returns>
         public async Task<ClientResponse> UpdateMeAsync(ClientUpdateRequest request)
         {
-            var user = _httpContextAccessor.HttpContext!.User;
-            var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userForFound = await _userService.GetUserByIdAsync(id);
+            var id = await ValidateLoggedUser();
             _logger.LogInformation($"Updating client with id {id}");
-            var clientToUpdate = await _clientRepository.getByUserIdAsync(id) ??  throw new ClientExceptions.ClientNotFoundException(id);
+            var clientToUpdate = await ValidateClientOfUser(id!);
+            
             clientToUpdate.Adress = request.Address;
             clientToUpdate.FullName = request.FullName;
             clientToUpdate.UpdatedAt = DateTime.UtcNow;
@@ -243,7 +241,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         public async Task LogicDeleteClientAsync(string id)
         {
             _logger.LogInformation($"Setting Client with id {id} to deleted");
-            var clientToDelete = await _clientRepository.GetByIdAsync(id)?? throw new ClientExceptions.ClientNotFoundException(id);
+            var clientToDelete = await FindClient(id);
             clientToDelete.IsDeleted = true;
             var userToDelete = await _userService.GetUserByIdAsync(clientToDelete.UserId);
             var userUpdate = new UserUpdateRequest
@@ -253,6 +251,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
             };
             await _userService.UpdateUserAsync(clientToDelete.UserId, userUpdate);
             await _clientRepository.UpdateAsync(clientToDelete);
+            await _cache.KeyDeleteAsync(id);
         }
 
         /// <summary>
@@ -260,16 +259,9 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         /// </summary>
         public async Task DeleteMe()
         {
-            var user = _httpContextAccessor.HttpContext!.User;
-            var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userForFound = await _userService.GetUserByIdAsync(id);
-        
-            if (userForFound == null)
-                throw new UserNotFoundException(id);
-        
-            var existingClient = await _clientRepository.getByUserIdAsync(id);
-            if (existingClient == null)
-                throw new ClientExceptions.ClientNotFoundException(id);
+            _logger.LogInformation("Deleting current client");
+            var id = await ValidateLoggedUser();
+            var existingClient = await ValidateClientOfUser(id);
             
             existingClient.IsDeleted = true;
             await _clientRepository.UpdateAsync(existingClient);
@@ -921,23 +913,96 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         /// <response code="500">Hubo un error al crear el archivo.</response>
         public async Task<FileStream> ExportOnlyMeData(Client client)
         {
-            _logger.LogInformation($"Exporting Client to a JSON file");
-            var json = JsonConvert.SerializeObject(client, Formatting.Indented);
-            var directoryPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "Json");
-
-            if (!Directory.Exists(directoryPath))
+            try
             {
-                Directory.CreateDirectory(directoryPath);
+                _logger.LogInformation($"Exporting Client to a JSON file");
+                string json;
+                
+                try
+                {
+                     json = JsonConvert.SerializeObject(client, Formatting.Indented);
+                }
+                catch (JsonSerializationException ex)
+                {
+                    _logger.LogError(ex, "Error serializing client data to JSON");
+                    throw new ClientExceptions.ClientUnprocessable(client.Id);
+                }
+                var directoryPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "Json");
+                
+                if (!Directory.Exists(directoryPath))
+                {
+                    Directory.CreateDirectory(directoryPath);
+                }
+
+                var fileName = "Client_WithId_" + client.Id + "_" + "InSystem-" +
+                               DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".json";
+                var filePath = Path.Combine(directoryPath, fileName);
+
+                await File.WriteAllTextAsync(filePath, json);
+
+                _logger.LogInformation($"File written to: {filePath}");
+
+                return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting client data to JSON file");
+                throw new ClientExceptions.ClientStorageException(client.Id);
+            }
+        }
 
-            var fileName = "Client_WithId_" + client.Id + "_" + "InSystem-" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".json";
-            var filePath = Path.Combine(directoryPath, fileName);
+        public async Task<ClientResponse> DeleteMeData()
+        {
+            _logger.LogInformation("Deleting data of the current user.");
+            var id = await ValidateLoggedUser();
+            var client = await ValidateClientOfUser(id!);
+            client = DeleteData(client);
+            await _cache.KeyDeleteAsync(client.Id);
+            await _clientRepository.UpdateAsync(client);
+            await _userService.DeleteUserAsync(id, logically: true);
+            return client.ToResponse();
+        }
 
-            await File.WriteAllTextAsync(filePath, json);
+        private Client DeleteData(Client cliente)
+        {
+            cliente.FullName = cliente.Adress = string.Empty;
+            if (cliente.Photo != "defaultProfile.png")
+            { 
+                DeleteFileAsync(cliente.Photo);
+                cliente.Photo = "defaultProfile.png";
+            }
+            if (cliente.PhotoDni != "defaultDni.png")
+            {
+                DeleteFileFromFtpAsync(cliente.PhotoDni);
+                cliente.PhotoDni = "defaultDni.png";
+            }
+            cliente.UpdatedAt = DateTime.UtcNow;
+            cliente.IsDeleted = true;
+            
+            return cliente;
+        }
 
-            _logger.LogInformation($"File written to: {filePath}");
+        private async Task<string?> ValidateLoggedUser()
+        {
+            var user = _httpContextAccessor.HttpContext!.User;
+            var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userForFound = await _userService.GetUserByIdAsync(id);
 
-            return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (userForFound == null)
+                throw new UserNotFoundException(id);
+            return id;
+        }
+
+        private async Task<Client?> ValidateClientOfUser(string id)
+        {
+            var client = await _clientRepository.getByUserIdAsync(id);
+            if (client == null)
+                throw new ClientExceptions.ClientNotFoundException(id);
+            return client;
+        }
+        private async Task<Client?> FindClient(string id)
+        {
+            return await _clientRepository.GetByIdAsync(id)?? throw new ClientExceptions.ClientNotFoundException(id);
         }
     }
     

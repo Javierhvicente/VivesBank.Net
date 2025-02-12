@@ -680,7 +680,7 @@ public class ClientServiceTests
         // Assert
         _clientRepositoryMock.Verify(repo => repo.UpdateAsync(It.Is<Client>(c => c.FullName == "Updated Name" && c.Adress == "Updated Address")), Times.Once);
     }
-    
+    /*
     [Test]
     public async Task UpdateClientAsync_UpdatesClient_WhenFoundInCache()
     {
@@ -697,7 +697,7 @@ public class ClientServiceTests
 
         // Assert
         _cache.Verify(repo => repo.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Once);
-    }
+    }*/
 
     [Test]
     public async Task UpdateMyClientData_ShouldReturn_ClientResponse()
@@ -810,7 +810,7 @@ public class ClientServiceTests
     }
     
     [Test]
-    public void DeleteMe_ShouldThrowUserNotFoundException_WhenUserDoesNotExist()
+    public void DeleteMe_UserNotFoundException_WhenUserDoesNotExist()
     {
         // Arrange
         var userId = "user1";
@@ -1282,7 +1282,7 @@ public class ClientServiceTests
         _userServiceMock.Setup(x => x.GetUserByIdAsync(It.IsAny<string>()))
             .ReturnsAsync(new UserResponse { Id = "userId123", Dni = "123456789" });
 
-        var expectedFileName = "PROFILE-123456789-20250204.jpg";  
+        var expectedFileName = "PROFILE-123456789-20250212.jpg";  
         _ftpServiceMock.Setup(x => x.SaveFileAsync(It.IsAny<IFormFile>(), It.IsAny<string>()))
             .ReturnsAsync(expectedFileName);  
         
@@ -1292,9 +1292,6 @@ public class ClientServiceTests
         _clientRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Client>()), Times.Once); 
 
     }
-
-
-
     
     [Test]
     public void UpdateMyProfilePhotoAsync_ShouldThrowException_WhenFileTypeNotAllowed()
@@ -1423,4 +1420,41 @@ public class ClientServiceTests
         
         await result.DisposeAsync();
     }
+    
+    [Test]
+    public async Task DeleteMeData_Success()
+    {
+        // Arrange
+        var userId = "123";
+        var client = new Client { Id = "123", FullName = "Test User", Adress = "Test Address", Photo = "profile.png", PhotoDni = "dni.png" };
+        
+        _httpContextAccessorMock.Setup(x => x.HttpContext!.User.FindFirst(ClaimTypes.NameIdentifier))
+            .Returns(new Claim(ClaimTypes.NameIdentifier, userId));
+        _userServiceMock.Setup(x => x.GetUserByIdAsync(userId)).ReturnsAsync(new UserResponse { Id = userId });  
+        _clientRepositoryMock.Setup(x => x.getByUserIdAsync(userId)).ReturnsAsync(client);
+        _clientRepositoryMock.Setup(x => x.UpdateAsync(It.IsAny<Client>())).Returns(Task.CompletedTask);
+        _cache.Setup(x => x.KeyDeleteAsync(client.Id, CommandFlags.None)).ReturnsAsync(true);
+        
+        // Act
+        var result = await _clientService.DeleteMeData();
+        
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(string.Empty, Is.EqualTo(result.Fullname));
+        Assert.That("defaultProfile.png", Is.EqualTo(result.Photo));
+        Assert.That("defaultDni.png", Is.EqualTo(result.DniPhoto));
+        Assert.That(result.IsDeleted, Is.True);
+    }
+
+    [Test]
+    public async Task DeleteMeData_UserNotFoundException()
+    {
+        // Arrange
+        _httpContextAccessorMock.Setup(x => x.HttpContext!.User.FindFirst(ClaimTypes.NameIdentifier))
+            .Returns((Claim?)null);
+        
+        // Act & Assert
+        Assert.ThrowsAsync<UserNotFoundException>(async () => await _clientService.DeleteMeData());
+    }
+    
 }

@@ -165,5 +165,7 @@ namespace VivesBankApi.Rest.Clients.Service
         /// </summary>
         /// <returns>El archivo de la foto de DNI.</returns>
         Task<FileStream> GettingMyDniPhotoFromFtpAsync();
+
+        Task<ClientResponse> DeleteMeData();
     }
 }
