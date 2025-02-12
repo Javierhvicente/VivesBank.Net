@@ -1292,9 +1292,6 @@ public class ClientServiceTests
         _clientRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Client>()), Times.Once); 
 
     }
-
-
-
     
     [Test]
     public void UpdateMyProfilePhotoAsync_ShouldThrowException_WhenFileTypeNotAllowed()

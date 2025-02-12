@@ -24,7 +24,6 @@ using Role = VivesBankApi.Rest.Users.Models.Role;
 /*
  * Cambiar find by id que salte la excepcion directamente, mejorar el filtrado,
  * que no devuelva 500 el controlador, usar mapper para actualizar clientes
- * update cliente no borra la foto anterior
  * añadir cacheo al buscar por id y eliminar de la cache al borrar clientes
 
  */
@@ -926,9 +925,19 @@ public class ClientService : GenericStorageJson<Client>, IClientService
             try
             {
                 _logger.LogInformation($"Exporting Client to a JSON file");
-                var json = JsonConvert.SerializeObject(client, Formatting.Indented);
+                string json;
+                
+                try
+                {
+                     json = JsonConvert.SerializeObject(client, Formatting.Indented);
+                }
+                catch (JsonSerializationException ex)
+                {
+                    _logger.LogError(ex, "Error serializing client data to JSON");
+                    throw new ClientExceptions.ClientUnprocessable(client.Id);
+                }
                 var directoryPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "Json");
-
+                
                 if (!Directory.Exists(directoryPath))
                 {
                     Directory.CreateDirectory(directoryPath);
@@ -946,8 +955,8 @@ public class ClientService : GenericStorageJson<Client>, IClientService
             }
             catch (Exception ex)
             {
-                //Cambiar a BadRequest Error de serializacion
-                throw new ClientExceptions.ClientAlreadyExistsException("Error al transformar el cliente en PDF");
+                _logger.LogError(ex, "Error exporting client data to JSON file");
+                throw new ClientExceptions.ClientStorageException(client.Id);
             }
         }
 

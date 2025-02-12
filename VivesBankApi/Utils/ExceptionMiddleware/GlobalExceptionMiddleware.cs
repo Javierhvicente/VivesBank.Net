@@ -171,6 +171,18 @@ public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExcep
                     errorResponse = new { message = exception.Message };
                     logger.LogWarning(exception, exception.Message);
                     break;
+                
+                case ClientExceptions.ClientUnprocessable:
+                    statusCode = HttpStatusCode.UnprocessableEntity;
+                    errorResponse = new { message = exception.Message };
+                    logger.LogWarning(exception, exception.Message);
+                    break;
+                
+                case ClientExceptions.ClientStorageException:
+                    statusCode = HttpStatusCode.ServiceUnavailable;
+                    errorResponse = new { message = exception.Message };
+                    logger.LogWarning(exception, exception.Message);
+                    break;
              
                 /************************** STORAGE EXCEPTIONS *****************************************************/
                 /************************** BACKUP *****************************************************/

@@ -60,5 +60,21 @@ namespace VivesBankApi.Rest.Clients.Exceptions
             {
             }
         }
+        
+        public class ClientUnprocessable : ClientExceptions
+        {
+            public ClientUnprocessable(string id)
+                : base($"It has occurred an error while exporting the client's data with id {id}")
+            {
+            }
+        }
+        
+        public class ClientStorageException : ClientExceptions
+        {
+            public ClientStorageException(string id)
+                : base($"It has occurred an error while working the client with id {id}, try later")
+            {
+            }
+        }
     }
 }

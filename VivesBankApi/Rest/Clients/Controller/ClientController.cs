@@ -155,17 +155,9 @@ namespace VivesBankApi.Rest.Clients.Controller
         public async Task<IActionResult> GetMeDataAsClient()
         {
             _logger.LogInformation("Exporting client data as a JSON file");
-            try
-            {
-                var user = await _clientService.GettingMyClientData();
-                var fileStream = await _clientService.ExportOnlyMeData(user.FromDtoResponse());
-                return File(fileStream, "application/json", "user.json");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error exporting client: {ex.Message}");
-                return StatusCode(500, new { message = "Error exporting client", details = ex.Message });
-            }
+            var user = await _clientService.GettingMyClientData();
+            var fileStream = await _clientService.ExportOnlyMeData(user.FromDtoResponse());
+            return File(fileStream, "application/json", "user.json");
         }
 
         /// <summary>
@@ -350,6 +342,7 @@ namespace VivesBankApi.Rest.Clients.Controller
             _logger.LogInformation("Request to get my DNI photo from FTP.");
 
             var fileStream = await _clientService.GettingMyDniPhotoFromFtpAsync();
+
 
             var mimeType = MimeTypes.GetMimeType(Path.GetExtension(fileStream.Name));
 
