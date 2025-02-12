@@ -937,4 +937,51 @@ public async Task DeleteMeAsync_UserNotFound()
     _cache.Verify(cache => cache.KeyDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Never);
 }
 
+[Test]
+public async Task DeleteUserAsync_LogicallyDeleteUser()
+{
+    // Arrange
+    var userId = "test-id";
+    var user = new User { Id = userId, Dni = "test-dni" };
+    userRepositoryMock.Setup(repo => repo.GetByIdAsync(userId)).ReturnsAsync(user);
+
+    // Act
+    await userService.DeleteUserAsync(userId, true);
+
+    // Assert
+    userRepositoryMock.Verify(repo => repo.UpdateAsync(It.Is<User>(u => u.IsDeleted && u.Role == Role.Revoked)), Times.Once);
+    _cache.Verify(cache => cache.KeyDeleteAsync(userId, It.IsAny<CommandFlags>()), Times.Once);
+    _cache.Verify(cache => cache.KeyDeleteAsync("users:TEST-DNI", It.IsAny<CommandFlags>()), Times.Once);
+}
+
+
+[Test]
+public async Task DeleteUserAsync_LogicallyFalse()
+{
+    // Arrange
+    var userId = "test-id";
+    var user = new User { Id = userId, Dni = "test-dni" };
+    userRepositoryMock.Setup(repo => repo.GetByIdAsync(userId)).ReturnsAsync(user);
+
+    // Act
+    await userService.DeleteUserAsync(userId, false);
+
+    // Assert
+    userRepositoryMock.Verify(repo => repo.DeleteAsync(userId), Times.Once);
+    _cache.Verify(cache => cache.KeyDeleteAsync(userId, It.IsAny<CommandFlags>()), Times.Once);
+    _cache.Verify(cache => cache.KeyDeleteAsync("users:TEST-DNI", It.IsAny<CommandFlags>()), Times.Once);
+}
+
+[Test]
+public async Task DeleteUserAsync_UserNotExist()
+{
+    // Arrange
+    var userId = "non-existent-id";
+    userRepositoryMock.Setup(repo => repo.GetByIdAsync(userId)).ReturnsAsync((User)null);
+
+    // Act & Assert
+    var ex = Assert.ThrowsAsync<UserNotFoundException>(async () => await userService.DeleteUserAsync(userId, true));
+    Assert.That(ex.Message, Is.EqualTo($"Usuario con id: {userId} no encontrado"));
+}
+
 }

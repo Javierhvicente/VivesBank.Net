@@ -319,21 +319,29 @@ public class AccountService : GenericStorageJson<Account>, IAccountsService
     /// <returns>Cuenta bancaria correspondiente al ID, si existe.</returns>
     private async Task<Account?> GetByIdAsync(string id)
     {
-        // Intentamos obtener la cuenta de la caché primero
-        var cachedAccount = await _cache.StringGetAsync(id);
-        if (!cachedAccount.IsNullOrEmpty)
-        {
-            return JsonConvert.DeserializeObject<Account>(cachedAccount);
-        }
+        return await GetAccountFromCacheAsync(id)
+               ?? await GetAccountFromRepositoryAndCacheAsync(id);
+    }
 
-        // Si no está en caché, la obtenemos de la base de datos y la almacenamos en caché
-        Account? account = await _accountsRepository.GetByIdAsync(id);
+    private async Task<Account?> GetAccountFromCacheAsync(string id)
+    {
+        var cachedAccount = await _cache.StringGetAsync(id);
+        return !cachedAccount.IsNullOrEmpty ? JsonConvert.DeserializeObject<Account>(cachedAccount) : null;
+    }
+
+    private async Task<Account?> GetAccountFromRepositoryAndCacheAsync(string id)
+    {
+        var account = await _accountsRepository.GetByIdAsync(id);
         if (account != null)
         {
-            await _cache.StringSetAsync(id, JsonConvert.SerializeObject(account), TimeSpan.FromMinutes(10));
-            return account;
+            await CacheAccountAsync(id, account);
         }
-        return null;
+        return account;
+    }
+
+    private async Task CacheAccountAsync(string id, Account account)
+    {
+        await _cache.StringSetAsync(id, JsonConvert.SerializeObject(account), TimeSpan.FromMinutes(10));
     }
 
     /// <summary>
