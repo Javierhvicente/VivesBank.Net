@@ -196,15 +196,6 @@ namespace VivesBankApi.Rest.Clients.Controller
             _logger.LogInformation($"Deleting client registered on the system");
             await _clientService.DeleteMe();
         }
-        
-        [HttpDelete("borrarDatos")]
-        [Authorize("ClientPolicy")]
-        public async Task<ClientResponse> DeleteMeData()
-        {
-            _logger.LogInformation($"Deleting client data registered on the system");
-            var cliente = await _clientService.DeleteMeData();
-            return cliente;
-        }
 
         /// <summary>
         /// Actualiza la foto del DNI del cliente.
@@ -348,6 +339,18 @@ namespace VivesBankApi.Rest.Clients.Controller
 
             _logger.LogInformation($"Returning DNI photo from FTP: {Path.GetFileName(fileStream.Name)} with MIME type: {mimeType}");
             return File(fileStream, mimeType, Path.GetFileName(fileStream.Name));
+        }
+        
+        /// <summary>
+        /// Elimina los datos de un cliente asociado a un usuario autenticado.
+        /// </summary>
+        [HttpDelete("borrarDatos")]
+        [Authorize("ClientPolicy")]
+        public async Task<ActionResult<ClientResponse>> DeleteMeData()
+        {
+            _logger.LogInformation($"Deleting client data registered on the system");
+            var cliente = await _clientService.DeleteMeData();
+            return Ok(cliente);
         }
     }
 }

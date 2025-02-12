@@ -21,14 +21,6 @@ using VivesBankApi.WebSocket.Model;
 using VivesBankApi.WebSocket.Service;
 using Path = System.IO.Path;
 using Role = VivesBankApi.Rest.Users.Models.Role;
-/*
- * Cambiar find by id que salte la excepcion directamente, mejorar el filtrado,
- * que no devuelva 500 el controlador, usar mapper para actualizar clientes
- * añadir cacheo al buscar por id y eliminar de la cache al borrar clientes
-
- */
-
-
 
 /// <summary>
 /// Service for managing client-related operations such as fetching, creating, updating, and deleting clients.
@@ -137,8 +129,6 @@ public class ClientService : GenericStorageJson<Client>, IClientService
             return client!.ToResponse();
         }
 
-       
-
         /// <summary>
         /// Retrieves a client by their unique ID.
         /// </summary>
@@ -166,6 +156,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
         {
             _logger.LogInformation($"Getting client by user id {userId}");
             var res = await _clientRepository.getByUserIdAsync(userId) ?? throw new ClientExceptions.ClientNotFoundException(userId);
+            await _cache.StringSetAsync(res.Id, JsonConvert.SerializeObject(res), TimeSpan.FromMinutes(10));
             return res.ToResponse();
         }
 
@@ -966,7 +957,7 @@ public class ClientService : GenericStorageJson<Client>, IClientService
             var id = await ValidateLoggedUser();
             var client = await ValidateClientOfUser(id!);
             client = DeleteData(client);
-            _cache.KeyDeleteAsync(client.Id);
+            await _cache.KeyDeleteAsync(client.Id);
             await _clientRepository.UpdateAsync(client);
             await _userService.DeleteUserAsync(id, logically: true);
             return client.ToResponse();
@@ -974,15 +965,12 @@ public class ClientService : GenericStorageJson<Client>, IClientService
 
         private Client DeleteData(Client cliente)
         {
-            cliente.FullName = "null";
-            cliente.Adress = "null";
-
+            cliente.FullName = cliente.Adress = string.Empty;
             if (cliente.Photo != "defaultProfile.png")
             { 
                 DeleteFileAsync(cliente.Photo);
                 cliente.Photo = "defaultProfile.png";
             }
-
             if (cliente.PhotoDni != "defaultDni.png")
             {
                 DeleteFileFromFtpAsync(cliente.PhotoDni);

@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using System.Text;
+using CSharpFunctionalExtensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ using VivesBankApi.Rest.Movimientos.Models;
 using VivesBankApi.Rest.Movimientos.Services.Movimientos;
 using VivesBankApi.Rest.Movimientos.Storage;
 using VivesBankApi.Rest.Users.Exceptions;
+using VivesBankApi.Rest.Users.Models;
 using Path = System.IO.Path;
 
 
@@ -619,4 +621,57 @@ public class ClientControllerTest
         ClassicAssert.AreEqual(400, badRequestResult.StatusCode);
         ClassicAssert.AreEqual("No file was provided or the file is empty.", badRequestResult.Value);
     }
+    
+    [Test]
+    public async Task DeleteMeData_Success()
+    {
+        var clientResponse = new ClientResponse { Id = "1", Fullname = "Deleted Client" };
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Role, "Client")
+        }));
+
+        _clientController.ControllerContext = new ControllerContext
+        {
+            HttpContext = httpContext
+        };
+
+        _service.Setup(s => s.DeleteMeData()).ReturnsAsync(clientResponse);
+
+        // Act
+        var result = await _clientController.DeleteMeData();
+
+        // Assert
+        Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
+        var okResult = result.Result as OkObjectResult;
+        Assert.That(okResult.Value, Is.EqualTo(clientResponse));
+    }
+    
+    [Test]
+    public async Task DeleteMeData_ThrowsUserNotFoundException_WhenClientDoesNotExist()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "999"), // Cliente inexistente
+            new Claim(ClaimTypes.Role, "Client")
+        }));
+
+        _clientController.ControllerContext = new ControllerContext
+        {
+            HttpContext = httpContext
+        };
+
+        _service.Setup(s => s.DeleteMeData()).ThrowsAsync(new UserNotFoundException("999"));
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<UserNotFoundException>(async () =>
+            await _clientController.DeleteMeData());
+
+        Assert.That(ex.Message, Is.EqualTo("The user with id: 999 was not found"));
+    }
+    
 }
