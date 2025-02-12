@@ -161,20 +161,29 @@ public class CreditCardService
 
     private async Task<Models.CreditCard?> GetByIdAsync(string id)
     {
+        return await GetCreditCardFromCacheAsync(id)
+               ?? await GetCreditCardFromRepositoryAndCacheAsync(id);
+    }
+
+    private async Task<Models.CreditCard?> GetCreditCardFromCacheAsync(string id)
+    {
         var cacheCreditCard = await _cache.StringGetAsync(id);
-        if (!cacheCreditCard.IsNullOrEmpty)
-        {
-            return JsonConvert.DeserializeObject<Models.CreditCard>(cacheCreditCard);
-        }
+        return !cacheCreditCard.IsNullOrEmpty ? JsonConvert.DeserializeObject<Models.CreditCard>(cacheCreditCard) : null;
+    }
 
-        Models.CreditCard? creditCard = await _creditCardRepository.GetByIdAsync(id);
-
+    private async Task<Models.CreditCard?> GetCreditCardFromRepositoryAndCacheAsync(string id)
+    {
+        var creditCard = await _creditCardRepository.GetByIdAsync(id);
         if (creditCard != null)
         {
-            await _cache.StringSetAsync(id, JsonConvert.SerializeObject(creditCard), TimeSpan.FromMinutes(10));
-            return creditCard;
+            await CacheCreditCardAsync(id, creditCard);
         }
-        return null;
+        return creditCard;
+    }
+
+    private async Task CacheCreditCardAsync(string id, Models.CreditCard creditCard)
+    {
+        await _cache.StringSetAsync(id, JsonConvert.SerializeObject(creditCard), TimeSpan.FromMinutes(10));
     }
 
     /// <summary>
