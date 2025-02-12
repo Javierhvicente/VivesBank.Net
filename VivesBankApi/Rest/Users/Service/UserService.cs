@@ -114,27 +114,46 @@ public class UserService : GenericStorageJson<User>, IUserService
     /// <exception cref="UserAlreadyExistsException">Si ya existe un usuario con el mismo DNI.</exception>
     public async Task<UserResponse> AddUserAsync(CreateUserRequest userRequest)
     {
+        ValidateUserRequest(userRequest);
+
+        User newUser = userRequest.toUser();
+        await EnsureUserDoesNotExist(userRequest.Dni);
+
+        await _userRepository.AddAsync(newUser);
+        await NotifyUserCreation(newUser);
+
+        return newUser.ToUserResponse();
+    }
+    
+    private void ValidateUserRequest(CreateUserRequest userRequest)
+    {
         if (!UserValidator.ValidateDni(userRequest.Dni))
         {
-            throw new  InvalidDniException(userRequest.Dni);
+            throw new InvalidDniException(userRequest.Dni);
         }
-        User newUser = userRequest.toUser();
-        User? userWithTheSameUsername = await GetByUsernameAsync(userRequest.Dni);
+    }
+    
+    private async Task EnsureUserDoesNotExist(string dni)
+    {
+        User? userWithTheSameUsername = await GetByUsernameAsync(dni);
         if (userWithTheSameUsername != null)
         {
-            throw new UserAlreadyExistsException(userRequest.Dni);
+            throw new UserAlreadyExistsException(dni);
         }
-        await _userRepository.AddAsync(newUser);
-        var notificacion = new Notification<UserResponse>
+    }
+
+    private async Task NotifyUserCreation(User newUser)
+    {
+        var notification = new Notification<UserResponse>
         {
             Type = Notification<UserResponse>.NotificationType.Create.ToString(),
             CreatedAt = DateTime.Now,
             Data = newUser.ToUserResponse()
         };
+
         var user = _httpContextAccessor.HttpContext!.User;
         var id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        await _webSocketHandler.NotifyUserAsync(id, notificacion);
-        return newUser.ToUserResponse();
+        await _webSocketHandler.NotifyUserAsync(id, notification);
     }
     
 
@@ -204,28 +223,48 @@ public class UserService : GenericStorageJson<User>, IUserService
     /// </summary>
     /// <param name="id">El ID del usuario a eliminar.</param>
     /// <param name="logically">Indica si la eliminación es lógica (true) o física (false).</param>
-    public async Task DeleteUserAsync(String id, bool logically)
+    public async Task DeleteUserAsync(string id, bool logically)
     {
-        User? userToUpdate = await _userRepository.GetByIdAsync(id);
-        if (userToUpdate == null)
-        {
-            throw new UserNotFoundException(id);
-        }
-        
+        var userToUpdate = await GetUserByIdOrThrowAsync(id);
+        await DeleteUserAsync(userToUpdate, logically);
+    }
+
+    private async Task<User> GetUserByIdOrThrowAsync(string id)
+    {
+        var user = await _userRepository.GetByIdAsync(id);
+        return user ?? throw new UserNotFoundException(id);
+    }
+
+    private async Task DeleteUserAsync(User user, bool logically)
+    {
         if (logically)
         {
-            userToUpdate.IsDeleted = true;
-            userToUpdate.Role = Role.Revoked;
-            await _userRepository.UpdateAsync(userToUpdate);
-            await _cache.KeyDeleteAsync(id);
-            await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper());
+            await LogicallyDeleteUserAsync(user);
         }
         else
         {
-            await _cache.KeyDeleteAsync(id);
-            await _cache.KeyDeleteAsync("users:" + userToUpdate.Dni.Trim().ToUpper());
-            await _userRepository.DeleteAsync(id);
+            await PhysicallyDeleteUserAsync(user);
         }
+    }
+
+    private async Task LogicallyDeleteUserAsync(User user)
+    {
+        user.IsDeleted = true;
+        user.Role = Role.Revoked;
+        await _userRepository.UpdateAsync(user);
+        await RemoveUserFromCacheAsync(user.Id, user.Dni);
+    }
+
+    private async Task PhysicallyDeleteUserAsync(User user)
+    {
+        await RemoveUserFromCacheAsync(user.Id, user.Dni);
+        await _userRepository.DeleteAsync(user.Id);
+    }
+
+    private async Task RemoveUserFromCacheAsync(string id, string dni)
+    {
+        await _cache.KeyDeleteAsync(id);
+        await _cache.KeyDeleteAsync("users:" + dni.Trim().ToUpper());
     }
     
     // Métodos privados de acceso a caché y base de datos...
